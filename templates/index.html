@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Daily Reporting System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .login-box {
+            max-width: 420px;
+            margin: 80px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .logo {
+            width: 80px; height: 80px;
+            margin: 0 auto 20px;
+            background: #2563eb;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+        }
+        h1 { text-align: center; color: #1f2937; margin-bottom: 10px; }
+        h2, h3, h4 { color: #1f2937; }
+        .subtitle { text-align: center; color: #6b7280; margin-bottom: 30px; font-size: 14px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #1f2937; }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+        textarea { min-height: 100px; resize: vertical; }
+        .btn {
+            padding: 12px 24px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #1e40af; }
+        .btn-full { width: 100%; }
+        .btn-sm { padding: 8px 16px; font-size: 14px; }
+        .btn-success { background: #10b981; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: #f59e0b; }
+        .alert {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .alert-danger { background: #fee2e2; color: #991b1b; }
+        .alert-success { background: #d1fae5; color: #065f46; }
+        .alert-info { background: #dbeafe; color: #1e40af; }
+        .hidden { display: none; }
+        
+        .dashboard {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e5e7eb;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e5e7eb;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 3px solid transparent;
+        }
+        .tab:hover { color: #2563eb; }
+        .tab.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #f9fafb;
+            padding: 24px;
+            border-radius: 12px;
+            border-left: 4px solid #2563eb;
+        }
+        .stat-label { color: #6b7280; font-size: 14px; margin-bottom: 8px; }
+        .stat-value { font-size: 36px; font-weight: 700; color: #1f2937; }
+        
+        .table-container { overflow-x: auto; }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .table th, .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .table th {
+            background: #f9fafb;
+            font-weight: 600;
+        }
+        .table tr:hover { background: #f9fafb; }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        
+        .task-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard { padding: 20px; }
+            .header { flex-direction: column; text-align: center; }
+            .stats { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <div id="modalContainer"></div>
+
+    <script>
+        const DATA_KEY = 'hr_system_final_v5';
+        const TASKS_KEY = 'hr_tasks_v5';
+        let currentUser = null;
+        let allUsers = [];
+        let allReports = [];
+
+        // Initialize system with 30 users
+        function initSystem() {
+            const stored = localStorage.getItem(DATA_KEY);
+            if (!stored) {
+                allUsers = [
+                    {id: 1, username: 'hradmin', password: 'Admin@2024', name: 'HR Administrator', role: 'admin', group: null},
+                    {id: 2, username: 'do.sharma', password: 'DO@2024', name: 'Ms. Priya Sharma', role: 'do', group: null},
+                    {id: 3, username: 'hos.dl', password: 'HoS@2024', name: 'Mr. Amit Verma', role: 'hos', group: 'D&L'},
+                    {id: 4, username: 'hos.admin', password: 'HoS@2024', name: 'Ms. Sunita Patel', role: 'hos', group: 'Administration'},
+                    {id: 5, username: 'hos.training', password: 'HoS@2024', name: 'Mr. Vijay Singh', role: 'hos', group: 'Training'},
+                    {id: 6, username: 'hos.rajbhasha', password: 'HoS@2024', name: 'Ms. Rekha Joshi', role: 'hos', group: 'Rajbhasha'},
+                    {id: 7, username: 'hos.pension', password: 'HoS@2024', name: 'Mr. Ramesh Gupta', role: 'hos', group: 'Pension'},
+                    {id: 8, username: 'hos.time', password: 'HoS@2024', name: 'Ms. Pooja Sharma', role: 'hos', group: 'Time Office'},
+                    {id: 9, username: 'hos.leave', password: 'HoS@2024', name: 'Mr. Sanjay Kumar', role: 'hos', group: 'Leave'},
+                    {id: 10, username: 'hos.bills', password: 'HoS@2024', name: 'Ms. Neha Reddy', role: 'hos', group: 'Bills'},
+                    {id: 11, username: 'hos.dak', password: 'HoS@2024', name: 'Mr. Arun Singh', role: 'hos', group: 'DAK'},
+                    {id: 12, username: 'go.kumar', password: 'GO@2024', name: 'Mr. Rajesh Kumar', role: 'go', group: null},
+                    {id: 13, username: 'user.dl1', password: 'User@2024', name: 'Mr. Suresh Reddy', role: 'user', group: 'D&L'},
+                    {id: 14, username: 'user.dl2', password: 'User@2024', name: 'Ms. Kavita Rao', role: 'user', group: 'D&L'},
+                    {id: 15, username: 'user.admin1', password: 'User@2024', name: 'Mr. Anil Kumar', role: 'user', group: 'Administration'},
+                    {id: 16, username: 'user.admin2', password: 'User@2024', name: 'Ms. Deepa Mehta', role: 'user', group: 'Administration'},
+                    {id: 17, username: 'user.training1', password: 'User@2024', name: 'Mr. Ramesh Gupta', role: 'user', group: 'Training'},
+                    {id: 18, username: 'user.training2', password: 'User@2024', name: 'Ms. Priya Nair', role: 'user', group: 'Training'},
+                    {id: 19, username: 'user.rajbhasha1', password: 'User@2024', name: 'Ms. Anjali Devi', role: 'user', group: 'Rajbhasha'},
+                    {id: 20, username: 'user.rajbhasha2', password: 'User@2024', name: 'Mr. Vijay Sharma', role: 'user', group: 'Rajbhasha'},
+                    {id: 21, username: 'user.pension1', password: 'User@2024', name: 'Mr. Mohan Lal', role: 'user', group: 'Pension'},
+                    {id: 22, username: 'user.pension2', password: 'User@2024', name: 'Ms. Lakshmi Devi', role: 'user', group: 'Pension'},
+                    {id: 23, username: 'user.time1', password: 'User@2024', name: 'Ms. Rekha Nair', role: 'user', group: 'Time Office'},
+                    {id: 24, username: 'user.time2', password: 'User@2024', name: 'Mr. Krishna Das', role: 'user', group: 'Time Office'},
+                    {id: 25, username: 'user.leave1', password: 'User@2024', name: 'Mr. Sanjay Joshi', role: 'user', group: 'Leave'},
+                    {id: 26, username: 'user.leave2', password: 'User@2024', name: 'Ms. Sunita Roy', role: 'user', group: 'Leave'},
+                    {id: 27, username: 'user.bills1', password: 'User@2024', name: 'Ms. Pooja Sharma', role: 'user', group: 'Bills'},
+                    {id: 28, username: 'user.bills2', password: 'User@2024', name: 'Mr. Rahul Verma', role: 'user', group: 'Bills'},
+                    {id: 29, username: 'user.dak1', password: 'User@2024', name: 'Mr. Rahul Singh', role: 'user', group: 'DAK'},
+                    {id: 30, username: 'user.dak2', password: 'User@2024', name: 'Ms. Anita Patel', role: 'user', group: 'DAK'}
+                ];
+                allReports = [];
+                saveData();
+            } else {
+                const data = JSON.parse(stored);
+                allUsers = data.users || [];
+                allReports = data.reports || [];
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem(DATA_KEY, JSON.stringify({
+                users: allUsers,
+                reports: allReports
+            }));
+        }
+
+        function canManageTasks() {
+            return currentUser && ['admin', 'do', 'hos'].includes(currentUser.role);
+        }
+
+        function getRoleName(role) {
+            const names = {
+                admin: 'Super Administrator',
+                do: 'Divisional Officer',
+                hos: 'Head of Section',
+                go: 'Group Officer',
+                user: 'Functional User'
+            };
+            return names[role] || role;
+        }
+
+        // Login
+        function renderLogin() {
+            return `
+                <div class="login-box">
+                    <div class="logo">HR</div>
+                    <h1>HR Daily Reporting System</h1>
+                    <p class="subtitle">Please sign in to continue</p>
+                    
+                    <div id="loginError" class="alert alert-danger hidden"></div>
+                    
+                    <div class="form-group">
+                        <label>Select Role</label>
+                        <select id="roleSelect" onchange="toggleGroupField()">
+                            <option value="">Choose your role...</option>
+                            <option value="admin">Super Administrator</option>
+                            <option value="do">Divisional Officer</option>
+                            <option value="hos">Head of Section</option>
+                            <option value="go">Group Officer</option>
+                            <option value="user">Functional User</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group hidden" id="groupDiv">
+                        <label>Functional Group</label>
+                        <select id="groupSelect">
+                            <option value="">Select group...</option>
+                            <option value="D&L">Discipline & Legal</option>
+                            <option value="Administration">Administration</option>
+                            <option value="Training">Training</option>
+                            <option value="Rajbhasha">Rajbhasha</option>
+                            <option value="Pension">Pension</option>
+                            <option value="Time Office">Time Office</option>
+                            <option value="Leave">Leave</option>
+                            <option value="Bills">Bills</option>
+                            <option value="DAK">DAK</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="username" placeholder="Enter username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="password" placeholder="Enter password">
+                    </div>
+                    
+                    <button class="btn btn-full" onclick="handleLogin()">Sign In</button>
+                </div>
+            `;
+        }
+
+        function toggleGroupField() {
+            const role = document.getElementById('roleSelect').value;
+            const div = document.getElementById('groupDiv');
+            if (role === 'user' || role === 'hos') {
+                div.classList.remove('hidden');
+            } else {
+                div.classList.add('hidden');
+            }
+        }
+
+        function handleLogin() {
+            const role = document.getElementById('roleSelect').value;
+            const group = document.getElementById('groupSelect').value;
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (!role) {
+                showError('Please select your role');
+                return;
+            }
+
+            if ((role === 'user' || role === 'hos') && !group) {
+                showError('Please select your functional group');
+                return;
+            }
+
+            const user = allUsers.find(u => 
+                u.username === username && 
+                u.password === password && 
+                u.role === role &&
+                (role !== 'user' && role !== 'hos' || u.group === group)
+            );
+
+            if (user) {
+                currentUser = user;
+                sessionStorage.setItem('currentUser', JSON.stringify(user));
+                renderApp();
+                showTab(0);
+            } else {
+                showError('Invalid credentials. Please check all fields.');
+            }
+        }
+
+        function showError(msg) {
+            const err = document.getElementById('loginError');
+            if (err) {
+                err.textContent = msg;
+                err.classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            sessionStorage.removeItem('currentUser');
+            renderApp();
+        }
+
+        // Dashboard
+        function renderDashboard() {
+            const isManager = canManageTasks();
+            return `
+                <div class="container">
+                    <div class="dashboard">
+                        <div class="header">
+                            <div>
+                                <h2>Welcome, ${currentUser.name}!</h2>
+                                <p style="color: #6b7280;">${getRoleName(currentUser.role)}${currentUser.group ? ' - ' + currentUser.group : ''}</p>
+                            </div>
+                            <button class="btn btn-sm btn-danger" onclick="logout()">Logout</button>
+                        </div>
+
+                        <div class="tabs">
+                            <button class="tab active" onclick="showTab(0)">📊 Overview</button>
+                            <button class="tab" onclick="showTab(1)">📝 Submit Report</button>
+                            <button class="tab" onclick="showTab(2)">📋 My Reports</button>
+                            ${isManager ? '<button class="tab" onclick="showTab(3)">📂 All Reports</button>' : ''}
+                            ${isManager ? '<button class="tab" onclick="showTab(4)">✅ Tasks</button>' : ''}
+                            ${isManager ? '<button class="tab" onclick="showTab(5)">👥 Users</button>' : ''}
+                        </div>
+
+                        <div class="tab-content active" id="tab0"></div>
+                        <div class="tab-content" id="tab1"></div>
+                        <div class="tab-content" id="tab2"></div>
+                        ${isManager ? '<div class="tab-content" id="tab3"></div>' : ''}
+                        ${isManager ? '<div class="tab-content" id="tab4"></div>' : ''}
+                        ${isManager ? '<div class="tab-content" id="tab5"></div>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showTab(index) {
+            document.querySelectorAll('.tab').forEach((t, i) => {
+                if (i === index) {
+                    t.classList.add('active');
+                    const tabEl = document.getElementById('tab' + i);
+                    if (tabEl) tabEl.classList.add('active');
+                } else {
+                    t.classList.remove('active');
+                    const tabEl = document.getElementById('tab' + i);
+                    if (tabEl) tabEl.classList.remove('active');
+                }
+            });
+
+            if (index === 0) loadOverview();
+            if (index === 1) loadSubmitForm();
+            if (index === 2) loadMyReports();
+            if (index === 3) loadAllReports();
+            if (index === 4) loadTasks();
+            if (index === 5) loadUsers();
+        }
+
+        function loadOverview() {
+            const isManager = canManageTasks();
+            const myReports = isManager ? allReports : allReports.filter(r => r.userId === currentUser.id);
+            const today = new Date().toISOString().split('T')[0];
+            const todayCount = myReports.filter(r => r.date === today).length;
+
+            let html = `
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Reports</div>
+                        <div class="stat-value">${myReports.length}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Reports Today</div>
+                        <div class="stat-value">${todayCount}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">${isManager ? 'Total Users' : 'My Group'}</div>
+                        <div class="stat-value">${isManager ? allUsers.length : (currentUser.group || 'All')}</div>
+                    </div>
+                </div>
+            `;
+
+            // Show assigned tasks for ALL users
+            html += '<div id="myTasksSection" style="display: none; background: #dbeafe; padding: 20px; border-radius: 12px; margin-bottom: 30px;"><h3>✅ My Assigned Tasks</h3><div id="myTasksList"></div></div>';
+
+            html += `<h3>Recent Reports</h3>${renderReportsTable(myReports.slice(0, 10))}`;
+            
+            document.getElementById('tab0').innerHTML = html;
+            loadMyAssignedTasks();
+        }
+
+        function loadSubmitForm() {
+            document.getElementById('tab1').innerHTML = `
+                <h3>📝 Submit Daily Report</h3>
+                <div class="alert alert-info" style="margin: 20px 0;">
+                    <strong>Deadline:</strong> Submit before 4:30 PM
+                </div>
+                <form id="reportForm" onsubmit="submitReport(event)">
+                    <div class="form-group">
+                        <label>Report Date</label>
+                        <input type="date" id="reportDate" required value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    ${[1,2,3,4,5,6,7,8].map(i => `
+                        <div class="form-group">
+                            <label>${i}. ${getFieldLabel(i)}</label>
+                            <textarea id="f${i}" required></textarea>
+                        </div>
+                    `).join('')}
+                    <button type="submit" class="btn btn-success">Submit Report</button>
+                </form>
+            `;
+        }
+
+        function getFieldLabel(i) {
+            const labels = [
+                'Activities Completed Today',
+                'Pending Cases / Backlog',
+                'Important Developments / Issues',
+                'Court / Legal / Audit / VIP / Inspection Matters',
+                'Employee Grievances Handled',
+                'Data / Statistics (Numbers)',
+                'Action Required from Higher Authority',
+                'Plan for Next Working Day'
+            ];
+            return labels[i-1];
+        }
+
+        function submitReport(e) {
+            e.preventDefault();
+            const date = document.getElementById('reportDate').value;
+
+            if (allReports.find(r => r.userId === currentUser.id && r.date === date)) {
+                alert('You already submitted a report for this date!');
+                return;
+            }
+
+            const report = {
+                id: Date.now(),
+                userId: currentUser.id,
+                userName: currentUser.name,
+                group: currentUser.group || 'Admin',
+                date: date,
+                time: new Date().toTimeString().split(' ')[0]
+            };
+
+            for (let i = 1; i <= 8; i++) {
+                report['f' + i] = document.getElementById('f' + i).value;
+            }
+
+            allReports.push(report);
+            saveData();
+            alert('✅ Report submitted successfully!');
+            document.getElementById('reportForm').reset();
+            document.getElementById('reportDate').value = new Date().toISOString().split('T')[0];
+        }
+
+        function loadMyReports() {
+            const myReports = allReports.filter(r => r.userId === currentUser.id);
+            document.getElementById('tab2').innerHTML = `
+                <h3>📋 My Report History</h3>
+                ${renderReportsTable(myReports)}
+            `;
+        }
+
+        function loadAllReports() {
+            if (!canManageTasks()) return;
+            document.getElementById('tab3').innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <h3>📂 All Reports</h3>
+                    <button class="btn btn-sm btn-success" onclick="exportToExcel()">📥 Export to Excel</button>
+                </div>
+                ${renderReportsTable(allReports)}
+            `;
+        }
+
+        function renderReportsTable(reports) {
+            if (reports.length === 0) {
+                return '<p style="color: #6b7280; padding: 20px;">No reports found</p>';
+            }
+
+            const isManager = canManageTasks();
+            let html = '<div class="table-container"><table class="table"><thead><tr><th>Date</th>';
+            if (isManager) html += '<th>User</th><th>Group</th>';
+            html += '<th>Time</th><th>Actions</th></tr></thead><tbody>';
+
+            reports.forEach(r => {
+                html += `<tr><td>${r.date}</td>`;
+                if (isManager) html += `<td>${r.userName}</td><td>${r.group}</td>`;
+                html += `<td>${r.time}</td><td><button class="btn btn-sm" onclick="viewReport(${r.id})">View</button></td></tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            return html;
+        }
+
+        function viewReport(id) {
+            const r = allReports.find(rep => rep.id === id);
+            if (!r) return;
+            
+            let msg = `REPORT DETAILS\n\nUser: ${r.userName}\nGroup: ${r.group}\nDate: ${r.date}\nTime: ${r.time}\n\n`;
+            for (let i = 1; i <= 8; i++) {
+                msg += `${i}. ${getFieldLabel(i)}:\n${r['f'+i]}\n\n`;
+            }
+            alert(msg);
+        }
+
+        // TASK WORKFLOW SYSTEM - Complete with file upload
+        
+        function loadMyAssignedTasks() {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const myTasks = tasks.filter(t => t.userId === currentUser.id);
+            const container = document.getElementById('myTasksList');
+            const section = document.getElementById('myTasksSection');
+            
+            if (myTasks.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            
+            const statusColors = {
+                'pending': '#ef4444',
+                'accepted': '#f59e0b',
+                'in_progress': '#3b82f6',
+                'completed': '#10b981',
+                'approved': '#059669',
+                'needs_correction': '#dc2626'
+            };
+            
+            const statusLabels = {
+                'pending': '⏳ New Task',
+                'accepted': '✅ Accepted',
+                'in_progress': '🔄 In Progress',
+                'completed': '✅ Completed - Awaiting Review',
+                'approved': '🎉 Approved',
+                'needs_correction': '⚠️ Needs Correction'
+            };
+            
+            let html = '';
+            myTasks.forEach(t => {
+                html += `
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ${statusColors[t.status]};">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+                            <div style="flex: 1;">
+                                <h4 style="margin: 0 0 5px 0; color: #1f2937;">${t.title}</h4>
+                                <p style="color: #6b7280; margin: 0 0 10px 0;">${t.description}</p>
+                                <div style="display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px;">
+                                    <span><strong>Assigned by:</strong> ${t.assignedBy}</span>
+                                    <span><strong>Due:</strong> ${t.dueDate}</span>
+                                    <span><strong>Priority:</strong> <span style="color: ${t.priority === 'urgent' ? '#dc2626' : t.priority === 'high' ? '#f59e0b' : '#3b82f6'}; font-weight: 600;">${t.priority.toUpperCase()}</span></span>
+                                </div>
+                            </div>
+                            <div>
+                                <span style="background: ${statusColors[t.status]}; color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap;">
+                                    ${statusLabels[t.status]}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        ${t.adminComment ? `
+                            <div style="background: #fef3c7; padding: 12px; border-radius: 6px; margin: 10px 0;">
+                                <strong style="color: #92400e;">📝 Admin Feedback:</strong>
+                                <p style="margin: 5px 0 0 0; color: #92400e;">${t.adminComment}</p>
+                            </div>
+                        ` : ''}
+                        
+                        ${t.extensionRequest ? `
+                            <div style="background: ${t.extensionRequest.status === 'approved' ? '#d1fae5' : t.extensionRequest.status === 'rejected' ? '#fee2e2' : '#dbeafe'}; padding: 12px; border-radius: 6px; margin: 10px 0;">
+                                <strong style="color: ${t.extensionRequest.status === 'approved' ? '#065f46' : t.extensionRequest.status === 'rejected' ? '#991b1b' : '#1e40af'};">
+                                    📅 Extension Request: ${t.extensionRequest.status === 'approved' ? '✅ Approved' : t.extensionRequest.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
+                                </strong>
+                                <p style="margin: 5px 0 0 0; color: #1f2937;">
+                                    Requested Date: ${t.extensionRequest.requestedDate}<br>
+                                    Reason: ${t.extensionRequest.reason}
+                                    ${t.extensionRequest.adminResponse ? `<br>Admin Response: ${t.extensionRequest.adminResponse}` : ''}
+                                </p>
+                            </div>
+                        ` : ''}
+                        
+                        ${t.uploadedFiles && t.uploadedFiles.length > 0 ? `
+                            <div style="margin: 10px 0;">
+                                <strong>📎 Uploaded Files:</strong>
+                                ${t.uploadedFiles.map((f, idx) => `<div style="color: #2563eb; margin: 5px 0; cursor: pointer;" onclick="downloadTaskFile(${t.id}, ${idx})">• ${f.name} (${f.size})</div>`).join('')}
+                            </div>
+                        ` : ''}
+                        
+                        <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                            ${t.status === 'pending' ? `
+                                <button class="btn btn-sm btn-success" onclick="acceptTask(${t.id})">✅ Accept Task</button>
+                            ` : ''}
+                            
+                            ${t.status === 'accepted' || t.status === 'in_progress' || t.status === 'needs_correction' ? `
+                                <label class="btn btn-sm" style="background: #3b82f6; margin: 0; cursor: pointer;">
+                                    📎 Upload File
+                                    <input type="file" id="file_${t.id}" style="display: none;" onchange="uploadTaskFile(${t.id}, this.files)" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                                </label>
+                                ${t.uploadedFiles && t.uploadedFiles.length > 0 ? `
+                                    <button class="btn btn-sm btn-success" onclick="completeTask(${t.id})">✅ Mark as Completed</button>
+                                ` : ''}
+                            ` : ''}
+                            
+                            ${t.status !== 'approved' && t.status !== 'completed' ? `
+                                <button class="btn btn-sm" style="background: #f59e0b; color: white;" onclick="requestExtension(${t.id})">📅 Request Extension</button>
+                            ` : ''}
+                            
+                            <button class="btn btn-sm" style="background: #6b7280;" onclick="viewTaskDetails(${t.id})">👁️ View Details</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function acceptTask(taskId) {
+            if (!confirm('Accept this task?')) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            task.status = 'accepted';
+            task.acceptedDate = new Date().toISOString();
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Task Accepted!\n\nYou can now upload files and complete the task.');
+            loadMyAssignedTasks();
+            if (canManageTasks()) loadTasks();
+        }
+        
+        // Request Due Date Extension
+        function requestExtension(taskId) {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            const reason = prompt('📅 Request Due Date Extension\n\nPlease provide a reason for requesting extension:');
+            if (!reason || !reason.trim()) return;
+            
+            const requestedDate = prompt(`Current Due Date: ${task.dueDate}\n\nEnter requested new due date (YYYY-MM-DD):`);
+            if (!requestedDate || !requestedDate.trim()) return;
+            
+            // Validate date format
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+                alert('❌ Invalid date format. Please use YYYY-MM-DD format.');
+                return;
+            }
+            
+            task.extensionRequest = {
+                requestedBy: currentUser.name,
+                requestedDate: requestedDate,
+                reason: reason.trim(),
+                requestedAt: new Date().toISOString(),
+                status: 'pending'
+            };
+            
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Extension request submitted!\n\nAdmin will review your request.');
+            loadMyAssignedTasks();
+        }
+        
+        function uploadTaskFile(taskId, files) {
+            if (!files || files.length === 0) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            if (!task.uploadedFiles) {
+                task.uploadedFiles = [];
+            }
+            
+            let filesProcessed = 0;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    task.uploadedFiles.push({
+                        name: file.name,
+                        size: formatFileSize(file.size),
+                        type: file.type,
+                        data: e.target.result,
+                        uploadedAt: new Date().toISOString()
+                    });
+                    
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        task.status = 'in_progress';
+                        localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+                        alert(`✅ ${filesProcessed} file(s) uploaded successfully!\n\nYou can now mark the task as completed.`);
+                        loadMyAssignedTasks();
+                        if (canManageTasks()) loadTasks();
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function completeTask(taskId) {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            if (!task.uploadedFiles || task.uploadedFiles.length === 0) {
+                alert('⚠️ Please upload at least one file before completing the task.');
+                return;
+            }
+            
+            if (!confirm('Mark this task as completed?\n\nThe task will be sent to the admin for review.')) return;
+            
+            task.status = 'completed';
+            task.completedDate = new Date().toISOString();
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Task marked as completed!\n\nThe admin will review your submission.');
+            loadMyAssignedTasks();
+            if (canManageTasks()) loadTasks();
+        }
+        
+        function approveTask(taskId) {
+            if (!canManageTasks()) return;
+            
+            if (!confirm('Approve this task?\n\nThe user will be notified that their work is approved.')) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            task.status = 'approved';
+            task.approvedDate = new Date().toISOString();
+            task.adminComment = '✅ Task completed successfully! Great work!';
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Task Approved!\n\nUser will see the approval notification.');
+            loadTasks();
+        }
+        
+        function requestCorrection(taskId) {
+            if (!canManageTasks()) return;
+            
+            const comment = prompt('What corrections are needed?\n\nEnter your feedback for the user:');
+            if (!comment) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            task.status = 'needs_correction';
+            task.adminComment = comment;
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Correction request sent!\n\nUser will see your feedback and can resubmit.');
+            loadTasks();
+        }
+        
+        function viewTaskDetails(taskId) {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            const statusLabels = {
+                'pending': '⏳ New Task - Not Yet Accepted',
+                'accepted': '✅ Accepted by User',
+                'in_progress': '🔄 In Progress - Files Uploaded',
+                'completed': '✅ Completed - Awaiting Admin Review',
+                'approved': '🎉 Approved by Admin',
+                'needs_correction': '⚠️ Needs Correction'
+            };
+            
+            let details = `
+═══════════════════════════════════════════════════════════
+TASK DETAILS
+═══════════════════════════════════════════════════════════
+
+Title: ${task.title}
+Description: ${task.description}
+
+Assigned To: ${task.userName}
+Assigned By: ${task.assignedBy}
+Assigned Date: ${task.assignedDate}
+Due Date: ${task.dueDate}
+Priority: ${task.priority.toUpperCase()}
+
+Status: ${statusLabels[task.status]}
+
+${task.acceptedDate ? `Accepted: ${new Date(task.acceptedDate).toLocaleString()}` : ''}
+${task.completedDate ? `Completed: ${new Date(task.completedDate).toLocaleString()}` : ''}
+${task.approvedDate ? `Approved: ${new Date(task.approvedDate).toLocaleString()}` : ''}
+
+${task.adminComment ? `\nAdmin Feedback:\n${task.adminComment}` : ''}
+
+${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${task.uploadedFiles.length}):\n${task.uploadedFiles.map((f, i) => `${i+1}. ${f.name} - ${f.size}`).join('\n')}` : '\nNo files uploaded yet'}
+
+═══════════════════════════════════════════════════════════
+            `;
+            
+            alert(details);
+        }
+        
+        function downloadTaskFile(taskId, fileIndex) {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task || !task.uploadedFiles || !task.uploadedFiles[fileIndex]) return;
+            
+            const file = task.uploadedFiles[fileIndex];
+            const link = document.createElement('a');
+            link.href = file.data;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Show task files in a modal for Admin/DO/HoS
+        function showTaskFiles(taskId) {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            const isManager = canManageTasks();
+            
+            let filesHtml = '<div style="max-height: 400px; overflow-y: auto;">';
+            
+            if (task.uploadedFiles && task.uploadedFiles.length > 0) {
+                task.uploadedFiles.forEach((file, idx) => {
+                    const uploadedBy = file.uploadedBy || task.userName;
+                    filesHtml += `
+                        <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="font-weight: 600; color: #1f2937; margin-bottom: 5px;">📎 ${file.name}</div>
+                                <div style="color: #6b7280; font-size: 13px;">
+                                    <span>Size: ${file.size}</span> | 
+                                    <span>Uploaded: ${new Date(file.uploadedAt).toLocaleString()}</span> |
+                                    <span>By: ${uploadedBy}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-success" onclick="downloadTaskFile(${taskId}, ${idx})">📥 Download</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                filesHtml += '<p style="color: #6b7280; text-align: center; padding: 20px;">No files uploaded yet</p>';
+            }
+            
+            filesHtml += '</div>';
+            
+            document.getElementById('modalContainer').innerHTML = `
+                <div class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>📎 Task Files ${task.uploadedFiles && task.uploadedFiles.length > 0 ? '(' + task.uploadedFiles.length + ')' : ''}</h3>
+                            <button class="close-btn" onclick="closeModal()">&times;</button>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <strong>Task:</strong> ${task.title}<br>
+                            <strong>User:</strong> ${task.userName}<br>
+                            <strong>Status:</strong> <span style="color: ${task.status === 'approved' ? '#059669' : task.status === 'completed' ? '#10b981' : '#3b82f6'};">${task.status}</span>
+                        </div>
+                        ${filesHtml}
+                        <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                            ${isManager ? `
+                                <label class="btn btn-success" style="margin: 0; cursor: pointer;">
+                                    📎 Upload File (Admin)
+                                    <input type="file" id="admin_file_${taskId}" style="display: none;" onchange="adminUploadTaskFile(${taskId}, this.files)" multiple>
+                                </label>
+                            ` : ''}
+                            ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `
+                                <button class="btn btn-success" onclick="downloadAllTaskFiles(${taskId})">📥 Download All</button>
+                            ` : ''}
+                            <button class="btn" style="background: #6b7280; color: white;" onclick="closeModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Download all files from a task
+        function downloadAllTaskFiles(taskId) {
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task || !task.uploadedFiles || task.uploadedFiles.length === 0) {
+                alert('No files to download');
+                return;
+            }
+            
+            if (confirm(`Download all ${task.uploadedFiles.length} file(s)?`)) {
+                task.uploadedFiles.forEach((file, idx) => {
+                    setTimeout(() => {
+                        const link = document.createElement('a');
+                        link.href = file.data;
+                        link.download = file.name;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }, idx * 500); // Delay between downloads
+                });
+                alert(`✅ Downloading ${task.uploadedFiles.length} file(s)...`);
+            }
+        }
+        
+        // Admin upload files to task
+        function adminUploadTaskFile(taskId, files) {
+            if (!canManageTasks()) return;
+            if (!files || files.length === 0) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            if (!task.uploadedFiles) {
+                task.uploadedFiles = [];
+            }
+            
+            let filesProcessed = 0;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    task.uploadedFiles.push({
+                        name: file.name,
+                        size: formatFileSize(file.size),
+                        type: file.type,
+                        data: e.target.result,
+                        uploadedAt: new Date().toISOString(),
+                        uploadedBy: currentUser.name + ' (Admin)'
+                    });
+                    
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+                        alert(`✅ ${filesProcessed} file(s) uploaded successfully by Admin!`);
+                        closeModal();
+                        loadTasks();
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // ADMIN TASK MANAGEMENT
+        function loadTasks() {
+            if (!canManageTasks()) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            
+            let html = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <h3>✅ Task Management</h3>
+                    <button class="btn btn-success" onclick="showAssignTaskModal()">+ Assign New Task</button>
+                </div>
+            `;
+
+            if (tasks.length === 0) {
+                html += '<p style="color: #6b7280; padding: 20px;">No tasks assigned yet</p>';
+            } else {
+                html += '<div class="table-container"><table class="table"><thead><tr><th>Task</th><th>Assigned To</th><th>Due Date</th><th>Priority</th><th>Status</th><th>Files</th><th>Actions</th></tr></thead><tbody>';
+                
+                tasks.forEach(t => {
+                    const statusColors = {
+                        'pending': '#6b7280',
+                        'accepted': '#f59e0b',
+                        'in_progress': '#3b82f6',
+                        'completed': '#10b981',
+                        'approved': '#059669',
+                        'needs_correction': '#dc2626'
+                    };
+                    
+                    html += `<tr ${t.extensionRequest && t.extensionRequest.status === 'pending' ? 'style="background: #fef3c7;"' : ''}>
+                        <td>
+                            <strong>${t.title}</strong><br>
+                            <small style="color: #6b7280;">${t.description}</small>
+                            ${t.extensionRequest && t.extensionRequest.status === 'pending' ? `
+                                <br><span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">📅 Extension Requested</span>
+                            ` : ''}
+                        </td>
+                        <td>${t.userName}</td>
+                        <td>
+                            ${t.dueDate}
+                            ${t.extensionRequest && t.extensionRequest.status === 'pending' ? `
+                                <br><small style="color: #f59e0b; font-weight: 600;">→ ${t.extensionRequest.requestedDate}</small>
+                            ` : ''}
+                        </td>
+                        <td><span style="color: ${t.priority === 'urgent' ? '#dc2626' : t.priority === 'high' ? '#f59e0b' : '#3b82f6'}; font-weight: 600;">${t.priority.toUpperCase()}</span></td>
+                        <td><span style="background: ${statusColors[t.status]}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">${t.status}</span></td>
+                        <td>
+                            <button class="btn btn-sm" style="background: ${t.uploadedFiles && t.uploadedFiles.length > 0 ? '#3b82f6' : '#6b7280'};" onclick="showTaskFiles(${t.id})">
+                                📎 ${t.uploadedFiles && t.uploadedFiles.length > 0 ? t.uploadedFiles.length + ' File(s)' : 'View/Upload'}
+                            </button>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm" onclick="viewTaskDetails(${t.id})">View</button>
+                                <button class="btn btn-sm" style="background: #8b5cf6; color: white;" onclick="editDueDate(${t.id})">📅 Edit Due Date</button>
+                                ${t.extensionRequest && t.extensionRequest.status === 'pending' ? `
+                                    <button class="btn btn-sm btn-success" onclick="approveExtension(${t.id})">✅ Approve Ext</button>
+                                    <button class="btn btn-sm btn-danger" onclick="rejectExtension(${t.id})">❌ Reject Ext</button>
+                                ` : ''}
+                                ${t.uploadedFiles && t.uploadedFiles.length > 0 ? `
+                                    <button class="btn btn-sm" style="background: #10b981; color: white;" onclick="downloadAllTaskFiles(${t.id})">📥 Download All</button>
+                                ` : ''}
+                                ${t.status === 'completed' ? `
+                                    <button class="btn btn-sm btn-success" onclick="approveTask(${t.id})">Approve</button>
+                                    <button class="btn btn-sm btn-warning" onclick="requestCorrection(${t.id})">Request Changes</button>
+                                ` : ''}
+                                <button class="btn btn-sm btn-danger" onclick="deleteTask(${t.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table></div>';
+            }
+            
+            document.getElementById('tab4').innerHTML = html;
+        }
+
+        function showAssignTaskModal() {
+            const eligibleUsers = allUsers;
+            
+            document.getElementById('modalContainer').innerHTML = `
+                <div class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Assign New Task</h3>
+                            <button class="close-btn" onclick="closeModal()">&times;</button>
+                        </div>
+                        <form onsubmit="assignTask(event)">
+                            <div class="form-group">
+                                <label>Assign To *</label>
+                                <select id="taskUserId" required>
+                                    <option value="">Select user...</option>
+                                    ${eligibleUsers.map(u => `<option value="${u.id}">${u.name} (${getRoleName(u.role)}${u.group ? ' - ' + u.group : ''})</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Task Title *</label>
+                                <input type="text" id="taskTitle" required placeholder="Enter task title">
+                            </div>
+                            <div class="form-group">
+                                <label>Task Description *</label>
+                                <textarea id="taskDescription" required placeholder="Enter task details"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Due Date *</label>
+                                <input type="date" id="taskDueDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority *</label>
+                                <select id="taskPriority" required>
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="background: #f3f4f6; padding: 15px; border-radius: 8px;">
+                                <label style="color: #2563eb;">📎 Attach Files (Optional)</label>
+                                <p style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">Upload templates, guidelines, or reference files for the user</p>
+                                <input type="file" id="taskFiles" multiple style="border: 2px dashed #2563eb; padding: 15px;">
+                                <div id="selectedFilesList" style="margin-top: 10px; font-size: 13px; color: #6b7280;"></div>
+                            </div>
+                            <div class="btn-group" style="margin-top: 20px;">
+                                <button type="submit" class="btn btn-success">Assign Task</button>
+                                <button type="button" class="btn" style="background: #6b7280; color: white;" onclick="closeModal()">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            // Add file selection listener
+            setTimeout(() => {
+                const fileInput = document.getElementById('taskFiles');
+                if (fileInput) {
+                    fileInput.addEventListener('change', function() {
+                        const filesList = document.getElementById('selectedFilesList');
+                        if (this.files.length > 0) {
+                            let html = '<strong>Selected files:</strong><br>';
+                            for (let i = 0; i < this.files.length; i++) {
+                                html += `📎 ${this.files[i].name} (${formatFileSize(this.files[i].size)})<br>`;
+                            }
+                            filesList.innerHTML = html;
+                        } else {
+                            filesList.innerHTML = '';
+                        }
+                    });
+                }
+            }, 100);
+        }
+
+        function assignTask(e) {
+            e.preventDefault();
+            
+            const userId = parseInt(document.getElementById('taskUserId').value);
+            const user = allUsers.find(u => u.id === userId);
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const newTask = {
+                id: Date.now(),
+                userId: userId,
+                userName: user.name,
+                title: document.getElementById('taskTitle').value,
+                description: document.getElementById('taskDescription').value,
+                dueDate: document.getElementById('taskDueDate').value,
+                priority: document.getElementById('taskPriority').value,
+                status: 'pending',
+                assignedBy: currentUser.name,
+                assignedDate: new Date().toISOString(),
+                uploadedFiles: []
+            };
+            
+            // Check if files were attached
+            const fileInput = document.getElementById('taskFiles');
+            const files = fileInput ? fileInput.files : null;
+            
+            if (files && files.length > 0) {
+                // Upload files before assigning task
+                let filesProcessed = 0;
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        newTask.uploadedFiles.push({
+                            name: file.name,
+                            size: formatFileSize(file.size),
+                            type: file.type,
+                            data: e.target.result,
+                            uploadedAt: new Date().toISOString(),
+                            uploadedBy: currentUser.name + ' (Admin)'
+                        });
+                        
+                        filesProcessed++;
+                        if (filesProcessed === files.length) {
+                            // All files processed, save task
+                            tasks.push(newTask);
+                            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+                            closeModal();
+                            alert(`✅ Task assigned successfully with ${filesProcessed} file(s)!`);
+                            loadTasks();
+                        }
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            } else {
+                // No files, just save task
+                tasks.push(newTask);
+                localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+                closeModal();
+                alert('✅ Task assigned successfully!');
+                loadTasks();
+            }
+        }
+
+        function deleteTask(id) {
+            if (!confirm('Delete this task?')) return;
+            
+            let tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            tasks = tasks.filter(t => t.id !== id);
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Task deleted!');
+            loadTasks();
+        }
+
+        // Admin: Edit Due Date
+        function editDueDate(taskId) {
+            if (!canManageTasks()) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            const newDate = prompt(`📅 Edit Due Date\n\nCurrent Due Date: ${task.dueDate}\n\nEnter new due date (YYYY-MM-DD):`);
+            if (!newDate || !newDate.trim()) return;
+            
+            // Validate date format
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+                alert('❌ Invalid date format. Please use YYYY-MM-DD format.');
+                return;
+            }
+            
+            task.dueDate = newDate;
+            
+            // Clear any pending extension request
+            if (task.extensionRequest && task.extensionRequest.status === 'pending') {
+                task.extensionRequest.status = 'approved';
+                task.extensionRequest.adminResponse = 'Due date updated by admin';
+            }
+            
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert(`✅ Due date updated to ${newDate}!`);
+            loadTasks();
+        }
+
+        // Admin: Approve Extension Request
+        function approveExtension(taskId) {
+            if (!canManageTasks()) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task || !task.extensionRequest) return;
+            
+            if (!confirm(`Approve extension request?\n\nCurrent Due: ${task.dueDate}\nRequested Due: ${task.extensionRequest.requestedDate}\nReason: ${task.extensionRequest.reason}`)) {
+                return;
+            }
+            
+            const response = prompt('Optional: Add a message to the user (or leave blank):');
+            
+            // Update due date
+            task.dueDate = task.extensionRequest.requestedDate;
+            task.extensionRequest.status = 'approved';
+            task.extensionRequest.adminResponse = response || 'Extension approved';
+            task.extensionRequest.approvedBy = currentUser.name;
+            task.extensionRequest.approvedAt = new Date().toISOString();
+            
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Extension approved! Due date has been updated.');
+            loadTasks();
+        }
+
+        // Admin: Reject Extension Request
+        function rejectExtension(taskId) {
+            if (!canManageTasks()) return;
+            
+            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const task = tasks.find(t => t.id === taskId);
+            if (!task || !task.extensionRequest) return;
+            
+            const response = prompt('Reason for rejecting extension request:');
+            if (!response || !response.trim()) return;
+            
+            task.extensionRequest.status = 'rejected';
+            task.extensionRequest.adminResponse = response;
+            task.extensionRequest.rejectedBy = currentUser.name;
+            task.extensionRequest.rejectedAt = new Date().toISOString();
+            
+            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+            
+            alert('✅ Extension request rejected. User has been notified.');
+            loadTasks();
+        }
+
+        // USER MANAGEMENT
+        function loadUsers() {
+            if (!canManageTasks()) return;
+
+            document.getElementById('tab5').innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <h3>👥 User Management</h3>
+                    <button class="btn btn-success" onclick="showAddUserModal()">+ Add New User</button>
+                </div>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Group</th>
+                                <th>Reports</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${allUsers.map(u => {
+                                const count = allReports.filter(r => r.userId === u.id).length;
+                                return `<tr>
+                                    <td>${u.name}</td>
+                                    <td>${u.username}</td>
+                                    <td>${getRoleName(u.role)}</td>
+                                    <td>${u.group || '-'}</td>
+                                    <td>${count}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">Edit</button>
+                                            ${u.id !== currentUser.id ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>` : ''}
+                                        </div>
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function showAddUserModal() {
+            document.getElementById('modalContainer').innerHTML = `
+                <div class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Add New User</h3>
+                            <button class="close-btn" onclick="closeModal()">&times;</button>
+                        </div>
+                        <form onsubmit="addNewUser(event)">
+                            <div class="form-group">
+                                <label>Full Name *</label>
+                                <input type="text" id="newName" required placeholder="Enter full name">
+                            </div>
+                            <div class="form-group">
+                                <label>Username *</label>
+                                <input type="text" id="newUsername" required placeholder="Enter username (no spaces)">
+                            </div>
+                            <div class="form-group">
+                                <label>Password *</label>
+                                <input type="password" id="newPassword" required minlength="6" placeholder="Minimum 6 characters">
+                            </div>
+                            <div class="form-group">
+                                <label>Role *</label>
+                                <select id="newRole" required onchange="toggleNewGroupField()">
+                                    <option value="">Select role...</option>
+                                    <option value="admin">Super Administrator</option>
+                                    <option value="do">Divisional Officer</option>
+                                    <option value="hos">Head of Section</option>
+                                    <option value="go">Group Officer</option>
+                                    <option value="user">Functional User</option>
+                                </select>
+                            </div>
+                            <div class="form-group hidden" id="newGroupDiv">
+                                <label>Functional Group *</label>
+                                <select id="newGroup">
+                                    <option value="">Select group...</option>
+                                    <option value="D&L">Discipline & Legal</option>
+                                    <option value="Administration">Administration</option>
+                                    <option value="Training">Training</option>
+                                    <option value="Rajbhasha">Rajbhasha</option>
+                                    <option value="Pension">Pension</option>
+                                    <option value="Time Office">Time Office</option>
+                                    <option value="Leave">Leave</option>
+                                    <option value="Bills">Bills</option>
+                                    <option value="DAK">DAK</option>
+                                </select>
+                            </div>
+                            <div class="btn-group" style="margin-top: 20px;">
+                                <button type="submit" class="btn btn-success">Add User</button>
+                                <button type="button" class="btn" style="background: #6b7280; color: white;" onclick="closeModal()">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleNewGroupField() {
+            const role = document.getElementById('newRole').value;
+            const div = document.getElementById('newGroupDiv');
+            const select = document.getElementById('newGroup');
+            
+            if (role === 'user' || role === 'hos') {
+                div.classList.remove('hidden');
+                select.required = true;
+            } else {
+                div.classList.add('hidden');
+                select.required = false;
+            }
+        }
+
+        function addNewUser(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('newUsername').value.trim();
+            
+            if (allUsers.find(u => u.username === username)) {
+                alert('❌ Username already exists! Please choose a different username.');
+                return;
+            }
+
+            const role = document.getElementById('newRole').value;
+            const newUser = {
+                id: allUsers.length > 0 ? Math.max(...allUsers.map(u => u.id)) + 1 : 1,
+                username: username,
+                password: document.getElementById('newPassword').value,
+                name: document.getElementById('newName').value.trim(),
+                role: role,
+                group: (role === 'user' || role === 'hos') ? document.getElementById('newGroup').value : null
+            };
+
+            allUsers.push(newUser);
+            saveData();
+            closeModal();
+            alert('✅ User added successfully!\n\nUsername: ' + newUser.username + '\nPassword: ' + newUser.password + '\n\nPlease save these credentials.');
+            loadUsers();
+        }
+
+        function editUser(id) {
+            const user = allUsers.find(u => u.id === id);
+            if (!user) return;
+
+            const newPassword = prompt(`Edit Password for ${user.name}\n\nEnter new password (leave blank to keep current):`);
+            if (newPassword !== null && newPassword.trim()) {
+                user.password = newPassword.trim();
+                saveData();
+                alert('✅ Password updated successfully!');
+            }
+        }
+
+        function deleteUser(id) {
+            const user = allUsers.find(u => u.id === id);
+            if (!user) return;
+
+            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            allUsers = allUsers.filter(u => u.id !== id);
+            saveData();
+            alert('✅ User deleted successfully!');
+            loadUsers();
+        }
+
+        function closeModal() {
+            document.getElementById('modalContainer').innerHTML = '';
+        }
+
+        function exportToExcel() {
+            if (allReports.length === 0) {
+                alert('No reports to export');
+                return;
+            }
+
+            const data = [
+                ['HR DAILY REPORTING SYSTEM'],
+                ['Generated: ' + new Date().toLocaleString()],
+                [''],
+                ['Date', 'User', 'Group', 'Time', ...Array(8).fill(0).map((_, i) => getFieldLabel(i+1))]
+            ];
+
+            allReports.forEach(r => {
+                data.push([r.date, r.userName, r.group, r.time, r.f1, r.f2, r.f3, r.f4, r.f5, r.f6, r.f7, r.f8]);
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{wch:12},{wch:20},{wch:15},{wch:10},{wch:40},{wch:40},{wch:40},{wch:40},{wch:40},{wch:40},{wch:40},{wch:40}];
+            XLSX.utils.book_append_sheet(wb, ws, 'Reports');
+            XLSX.writeFile(wb, `HR_Reports_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+
+        function renderApp() {
+            document.getElementById('app').innerHTML = currentUser ? renderDashboard() : renderLogin();
+        }
+
+        // Initialize
+        initSystem();
+        const saved = sessionStorage.getItem('currentUser');
+        if (saved) {
+            try {
+                currentUser = JSON.parse(saved);
+            } catch (e) {
+                currentUser = null;
+            }
+        }
+        renderApp();
+        if (currentUser) loadOverview();
+    </script>
+</body>
+</html>
