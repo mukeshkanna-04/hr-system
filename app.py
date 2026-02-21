@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 from bson.objectid import ObjectId
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 
@@ -31,10 +31,7 @@ def initialize_default_users():
         return False
     
     if db.users.count_documents({}) > 0:
-        print("✅ Users exist")
         return True
-    
-    print("🔄 Creating users...")
     
     users = [
         {'id': 1, 'username': 'hradmin', 'password': generate_password_hash('Admin@2024'), 'name': 'HR Administrator', 'role': 'admin', 'group': None},
