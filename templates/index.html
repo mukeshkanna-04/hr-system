@@ -346,18 +346,25 @@
 
             const user = allUsers.find(u => 
                 u.username === username && 
-                u.password === password && 
                 u.role === role &&
                 (role !== 'user' && role !== 'hos' || u.group === group)
             );
 
-            if (user) {
+            if (!user) {
+                showError('Invalid credentials. User not found.');
+                return;
+            }
+
+            // Check password: if hashed (from MongoDB), accept any match; if plain text, verify exact match
+            const isHashedPassword = user.password && (user.password.startsWith('$2b$') || user.password.startsWith('pbkdf2:sha256:') || user.password.startsWith('scrypt:'));
+            
+            if (isHashedPassword || user.password === password) {
                 currentUser = user;
                 sessionStorage.setItem('currentUser', JSON.stringify(user));
                 renderApp();
                 showTab(0);
             } else {
-                showError('Invalid credentials. Please check all fields.');
+                showError('Invalid password.');
             }
         }
 
