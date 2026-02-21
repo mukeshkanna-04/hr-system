@@ -2,45 +2,41 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 from bson.objectid import ObjectId
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
 from datetime import datetime
 import os
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key-change-in-production')
+app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key')
 CORS(app)
 
-# MongoDB Connection
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://mukeshkanna10102004_db_user:Mukesh10102004@hr-cluster.glsbk8q.mongodb.net/hr_system?retryWrites=true&w=majority')
 
 try:
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     client.admin.command('ping')
     db = client.hr_system
-    print("✅ MongoDB connected successfully!")
+    print("✅ MongoDB connected!")
 except Exception as e:
-    print(f"❌ MongoDB connection error: {e}")
+    print(f"❌ MongoDB error: {e}")
     db = None
 
 def serialize_doc(doc):
-    """Convert MongoDB ObjectId to string"""
     if doc and '_id' in doc:
         doc['_id'] = str(doc['_id'])
     return doc
 
 def initialize_default_users():
-    """Create all default users in MongoDB"""
-    if not db:
+    if db is None:
         return False
     
-    # Check if users already exist
     if db.users.count_documents({}) > 0:
-        print("✅ Users already exist in database")
+        print("✅ Users exist")
         return True
     
-    print("🔄 Creating default users...")
+    print("🔄 Creating users...")
     
-    default_users = [
+    users = [
         {'id': 1, 'username': 'hradmin', 'password': generate_password_hash('Admin@2024'), 'name': 'HR Administrator', 'role': 'admin', 'group': None},
         {'id': 2, 'username': 'do.sharma', 'password': generate_password_hash('DO@2024'), 'name': 'Ms. Priya Sharma', 'role': 'do', 'group': None},
         {'id': 3, 'username': 'hos.dl', 'password': generate_password_hash('HoS@2024'), 'name': 'Mr. Amit Verma', 'role': 'hos', 'group': 'D&L'},
@@ -73,42 +69,30 @@ def initialize_default_users():
         {'id': 30, 'username': 'user.dak2', 'password': generate_password_hash('User@2024'), 'name': 'Ms. Anita Patel', 'role': 'user', 'group': 'DAK'}
     ]
     
-    # Insert all default users
-    db.users.insert_many(default_users)
-    print(f"✅ Created {len(default_users)} default users!")
+    db.users.insert_many(users)
+    print(f"✅ Created {len(users)} users!")
     return True
 
 @app.route('/')
 def home():
-    """Serve the main frontend"""
-    # Auto-initialize users on first request
     initialize_default_users()
     try:
         return render_template('index.html')
     except Exception as e:
-        return f"Error loading template: {str(e)}<br>Make sure templates/index.html exists!", 500
+        return f"Error: {str(e)}", 500
 
 @app.route('/health')
 def health():
-    """Health check endpoint"""
-    user_count = db.users.count_documents({}) if db else 0
-    return jsonify({
-        'status': 'ok',
-        'mongodb': 'connected' if db else 'disconnected',
-        'users': user_count,
-        'timestamp': datetime.utcnow().isoformat()
-    })
+    user_count = db.users.count_documents({}) if db is not None else 0
+    return jsonify({'status': 'ok', 'mongodb': 'connected' if db is not None else 'disconnected', 'users': user_count})
 
 @app.route('/api/data', methods=['GET'])
 def get_all_data():
-    """Get all users and tasks from MongoDB"""
     try:
-        if not db:
+        if db is None:
             return jsonify({'users': [], 'tasks': []})
         
-        # Ensure default users exist
         initialize_default_users()
-        
         users = list(db.users.find())
         tasks = list(db.tasks.find())
         
@@ -119,84 +103,55 @@ def get_all_data():
         
         return jsonify({'users': users, 'tasks': tasks})
     except Exception as e:
-        print(f"Error in get_all_data: {e}")
+        print(f"Error: {e}")
         return jsonify({'users': [], 'tasks': []})
 
 @app.route('/api/data', methods=['POST'])
 def save_all_data():
-    """Save all users and tasks to MongoDB"""
     try:
-        if not db:
-            return jsonify({'success': False, 'error': 'Database not connected'}), 500
+        if db is None:
+            return jsonify({'success': False}), 500
         
         data = request.json
         users = data.get('users', [])
         tasks = data.get('tasks', [])
         
-        # Save users
         for user in users:
             if '_id' in user and user['_id']:
                 try:
                     user_id = ObjectId(user['_id']) if isinstance(user['_id'], str) else user['_id']
                     db.users.update_one({'_id': user_id}, {'$set': user}, upsert=True)
-                except Exception as e:
-                    print(f"Error saving user: {e}")
-            else:
-                try:
-                    result = db.users.insert_one(user)
-                    user['_id'] = str(result.inserted_id)
-                except Exception as e:
-                    print(f"Error inserting user: {e}")
+                except:
+                    pass
         
-        # Save tasks
         for task in tasks:
             if '_id' in task and task['_id']:
                 try:
                     task_id = ObjectId(task['_id']) if isinstance(task['_id'], str) else task['_id']
                     db.tasks.update_one({'_id': task_id}, {'$set': task}, upsert=True)
-                except Exception as e:
-                    print(f"Error saving task: {e}")
-            else:
-                try:
-                    result = db.tasks.insert_one(task)
-                    task['_id'] = str(result.inserted_id)
-                except Exception as e:
-                    print(f"Error inserting task: {e}")
+                except:
+                    pass
         
         return jsonify({'success': True})
     except Exception as e:
-        print(f"Error in save_all_data: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print(f"Error: {e}")
+        return jsonify({'success': False}), 500
 
 @app.route('/api/init', methods=['POST'])
 def initialize():
-    """Force initialize all default users"""
     try:
-        if not db:
-            return jsonify({'success': False, 'error': 'Database not connected'}), 500
+        if db is None:
+            return jsonify({'success': False}), 500
         
-        # Clear existing users
         db.users.delete_many({})
-        
-        # Recreate all default users
         initialize_default_users()
         
-        return jsonify({
-            'success': True,
-            'message': '30 default users created!',
-            'users': db.users.count_documents({})
-        })
+        return jsonify({'success': True, 'message': '30 users created!', 'users': db.users.count_documents({})})
     except Exception as e:
-        print(f"Error in initialize: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 10000))
-    print(f"🚀 Starting HR System on port {port}")
-    print(f"📊 MongoDB: {'Connected' if db else 'Disconnected'}")
-    
-    # Initialize users on startup
-    if db:
+    if db is not None:
         initialize_default_users()
-    
     app.run(host='0.0.0.0', port=port, debug=False)
