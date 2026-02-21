@@ -218,26 +218,37 @@
         let allReports = [];
 
         // Initialize system with 30 users
-      function initSystem() {
-    const stored = localStorage.getItem(DATA_KEY);
-    if (!stored) {
-        // Users will be loaded from MongoDB via API
-        allUsers = [];
-        allReports = [];
-        saveData();
-    } else {
-        const data = JSON.parse(stored);
-        allUsers = data.users || [];
-        allReports = data.reports || [];
-    }
-}
-
-        function saveData() {
-            localStorage.setItem(DATA_KEY, JSON.stringify({
-                users: allUsers,
-                reports: allReports
-            }));
+        // MongoDB sync - NO localStorage
+        async function initSystem() {
+            try {
+                const res = await fetch('/api/data');
+                const data = await res.json();
+                if (data.success) {
+                    allUsers = data.users || [];
+                    allReports = data.reports || [];
+                    console.log('✅ Loaded:', allUsers.length, 'users');
+                }
+            } catch (e) {
+                console.error('Error:', e);
+                allUsers = [];
+                allReports = [];
+            }
         }
+
+        async function saveData() {
+            try {
+                await fetch('/api/data', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({users: allUsers, reports: allReports, tasks: JSON.parse(localStorage.getItem(TASKS_KEY)||'[]')})
+                });
+                console.log('✅ Saved');
+            } catch (e) {}
+        }
+
+        // Auto-sync
+        setInterval(saveData, 2000);
+        setInterval(initSystem, 3000);
 
         function canManageTasks() {
             return currentUser && ['admin', 'do', 'hos'].includes(currentUser.role);
