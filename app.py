@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -10,13 +11,14 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key')
 CORS(app)
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://mukeshkanna10102004_db_user:Mukesh10102004@hr-cluster.glsbk8q.mongodb.net/hr_system?retryWrites=true&w=majority')
+# CORRECT MongoDB URI - Replace <password> with actual password
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://mukeshkanna10102004_db_user:Mukesh10102004@hr-cluster.glsbk8q.mongodb.net/?retryWrites=true&w=majority&appName=HR-Cluster')
 
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+    client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
     client.admin.command('ping')
     db = client.hr_system
-    print("✅ MongoDB connected!")
+    print("✅ Pinged your deployment. You successfully connected to MongoDB!")
 except Exception as e:
     print(f"❌ MongoDB error: {e}")
     db = None
