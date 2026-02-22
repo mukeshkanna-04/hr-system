@@ -1385,9 +1385,10 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
                                     <td>${count}</td>
                                     <td>
                                         <div class="btn-group">
-                                            ${canEditDelete ? `<button class="btn btn-sm btn-warning" onclick="editUser(${u.id})" ${u.id === currentUser.id ? 'title="Edit your password"' : 'title="Edit username & password"'}>Edit</button>` : ''}
-                                            ${canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})" title="Delete user">Delete</button>` : ''}
-                                            ${!canEditDelete ? '<span style="color: #6b7280;">View only</span>' : ''}
+                                            ${canEditDelete ? `<button class="btn btn-sm btn-warning" onclick="editUser(${u.id})" ${u.id === currentUser.id ? 'title="Edit your info"' : 'title="Edit user"'}>✏️ Edit</button>` : ''}
+                                            ${canEditDelete && u.id !== currentUser.id ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})" title="Delete user">🗑️ Delete</button>` : ''}
+                                            ${!canEditDelete ? '<span style="color: #6b7280; font-size: 13px;">View only</span>' : ''}
+                                            ${u.id === currentUser.id ? '<span style="color: #2563eb; font-size: 13px;">👤 You</span>' : ''}
                                         </div>
                                     </td>
                                 </tr>`;
@@ -1469,7 +1470,7 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             }
         }
 
-        function addNewUser(e) {
+        async function addNewUser(e) {
             e.preventDefault();
             
             const username = document.getElementById('newUsername').value.trim();
@@ -1481,7 +1482,7 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
 
             const role = document.getElementById('newRole').value;
             const newUser = {
-                id: allUsers.length > 0 ? Math.max(...allUsers.map(u => u.id)) + 1 : 1,
+                id: Date.now(),
                 username: username,
                 password: document.getElementById('newPassword').value,
                 name: document.getElementById('newName').value.trim(),
@@ -1492,15 +1493,19 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             allUsers.push(newUser);
             closeModal();
             
-            // FORCE IMMEDIATE SAVE TO MONGODB
-            saveData();
-            setTimeout(() => {
-                saveData();
-                console.log('🚨 FORCED DOUBLE SAVE - User should be in MongoDB now!');
-            }, 500);
+            // TRIPLE FORCE SAVE
+            console.log('🚨 SAVING USER...');
+            await saveData();
+            await new Promise(r => setTimeout(r, 300));
+            await saveData();
+            await new Promise(r => setTimeout(r, 300));
+            await saveData();
+            console.log('✅ TRIPLE SAVE DONE!');
             
             alert('✅ User added successfully!\n\nUsername: ' + newUser.username + '\nPassword: ' + newUser.password + '\n\nPlease save these credentials.');
             loadUsers();
+            
+            setTimeout(() => initSystem(), 500);
         }
 
         function editUser(id) {
