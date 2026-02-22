@@ -3,7 +3,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from bson.objectid import ObjectId
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
 from datetime import datetime
 import os
 
@@ -83,22 +83,44 @@ def get_data():
 @app.route('/api/data', methods=['POST'])
 def save_data():
     if db is None:
-        return jsonify({'success': False}), 500
-    data = request.json
-    for u in data.get('users', []):
-        if '_id' in u and u['_id']:
-            db.users.update_one({'_id': ObjectId(u['_id'])}, {'$set': u}, upsert=True)
-    for r in data.get('reports', []):
-        if '_id' in r and r['_id']:
-            db.reports.update_one({'_id': ObjectId(r['_id'])}, {'$set': r}, upsert=True)
-        else:
-            db.reports.insert_one(r)
-    for t in data.get('tasks', []):
-        if '_id' in t and t['_id']:
-            db.tasks.update_one({'_id': ObjectId(t['_id'])}, {'$set': t}, upsert=True)
-        else:
-            db.tasks.insert_one(t)
-    return jsonify({'success': True})
+        return jsonify({'success': False, 'error': 'Database not connected'}), 500
+    
+    try:
+        data = request.json
+        
+        # Save users - CRITICAL: Remove _id before updating!
+        for u in data.get('users', []):
+            if '_id' in u and u['_id']:
+                user_id = ObjectId(u['_id']) if isinstance(u['_id'], str) else u['_id']
+                # Create copy without _id for update
+                update_data = {k: v for k, v in u.items() if k != '_id'}
+                db.users.update_one({'_id': user_id}, {'$set': update_data}, upsert=True)
+            else:
+                # New user - insert directly
+                db.users.insert_one(u)
+        
+        # Save reports
+        for r in data.get('reports', []):
+            if '_id' in r and r['_id']:
+                report_id = ObjectId(r['_id']) if isinstance(r['_id'], str) else r['_id']
+                update_data = {k: v for k, v in r.items() if k != '_id'}
+                db.reports.update_one({'_id': report_id}, {'$set': update_data}, upsert=True)
+            else:
+                db.reports.insert_one(r)
+        
+        # Save tasks
+        for t in data.get('tasks', []):
+            if '_id' in t and t['_id']:
+                task_id = ObjectId(t['_id']) if isinstance(t['_id'], str) else t['_id']
+                update_data = {k: v for k, v in t.items() if k != '_id'}
+                db.tasks.update_one({'_id': task_id}, {'$set': update_data}, upsert=True)
+            else:
+                db.tasks.insert_one(t)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Save error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/init', methods=['POST'])
 def initialize():
