@@ -218,15 +218,23 @@
         let allReports = [];
 
         // Initialize system with 30 users
-        // MongoDB sync - NO localStorage
+        // AGGRESSIVE MULTI-DEVICE SYNC
         async function initSystem() {
             try {
-                const res = await fetch('/api/data');
+                const res = await fetch('/api/data?t=' + Date.now());
                 const data = await res.json();
                 if (data.success) {
                     allUsers = data.users || [];
                     allReports = data.reports || [];
-                    console.log('✅ Loaded:', allUsers.length, 'users');
+                    console.log('🔄 Synced:', allUsers.length, 'users', allReports.length, 'reports');
+                    
+                    // Refresh UI if on user management page
+                    if (currentUser && typeof loadUsers === 'function') {
+                        const activeTab = document.querySelector('.tab.active');
+                        if (activeTab && activeTab.textContent.includes('Users')) {
+                            loadUsers();
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error:', e);
@@ -242,13 +250,15 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({users: allUsers, reports: allReports, tasks: JSON.parse(localStorage.getItem(TASKS_KEY)||'[]')})
                 });
-                console.log('✅ Saved');
-            } catch (e) {}
+                console.log('💾 Saved to MongoDB');
+            } catch (e) {
+                console.error('Save error:', e);
+            }
         }
 
-        // Auto-sync
-        setInterval(saveData, 2000);
-        setInterval(initSystem, 3000);
+        // AGGRESSIVE AUTO-SYNC - Every 1 second!
+        setInterval(saveData, 1000);
+        setInterval(initSystem, 1000);
 
         function canManageTasks() {
             return currentUser && ['admin', 'do', 'hos'].includes(currentUser.role);
@@ -1344,9 +1354,11 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
         function loadUsers() {
             if (!canManageTasks()) return;
 
+            const canEditDelete = ['admin', 'do', 'go', 'hos'].includes(currentUser.role);
+
             document.getElementById('tab5').innerHTML = `
                 <div style="display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h3>👥 User Management</h3>
+                    <h3>👥 User Management (${allUsers.length} users)</h3>
                     <button class="btn btn-success" onclick="showAddUserModal()">+ Add New User</button>
                 </div>
                 <div class="table-container">
@@ -1364,6 +1376,7 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
                         <tbody>
                             ${allUsers.map(u => {
                                 const count = allReports.filter(r => r.userId === u.id).length;
+                                const canEdit = canEditDelete && u.id !== currentUser.id;
                                 return `<tr>
                                     <td>${u.name}</td>
                                     <td>${u.username}</td>
@@ -1372,8 +1385,9 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
                                     <td>${count}</td>
                                     <td>
                                         <div class="btn-group">
-                                            <button class="btn btn-sm btn-warning" onclick="editUser(${u.id})">Edit</button>
-                                            ${u.id !== currentUser.id ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>` : ''}
+                                            ${canEditDelete ? `<button class="btn btn-sm btn-warning" onclick="editUser(${u.id})" ${u.id === currentUser.id ? 'title="Edit your password"' : 'title="Edit username & password"'}>Edit</button>` : ''}
+                                            ${canEdit ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})" title="Delete user">Delete</button>` : ''}
+                                            ${!canEditDelete ? '<span style="color: #6b7280;">View only</span>' : ''}
                                         </div>
                                     </td>
                                 </tr>`;
@@ -1476,8 +1490,15 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             };
 
             allUsers.push(newUser);
-            saveData();
             closeModal();
+            
+            // FORCE IMMEDIATE SAVE TO MONGODB
+            saveData();
+            setTimeout(() => {
+                saveData();
+                console.log('🚨 FORCED DOUBLE SAVE - User should be in MongoDB now!');
+            }, 500);
+            
             alert('✅ User added successfully!\n\nUsername: ' + newUser.username + '\nPassword: ' + newUser.password + '\n\nPlease save these credentials.');
             loadUsers();
         }
@@ -1486,11 +1507,32 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             const user = allUsers.find(u => u.id === id);
             if (!user) return;
 
+            // Check permission - only admin, DO, GO, HOS can edit
+            if (!['admin', 'do', 'go', 'hos'].includes(currentUser.role)) {
+                alert('❌ You do not have permission to edit users.');
+                return;
+            }
+
+            const newUsername = prompt(`Edit Username for ${user.name}\n\nCurrent username: ${user.username}\nEnter new username (leave blank to keep current):`);
+            if (newUsername !== null && newUsername.trim()) {
+                // Check if username already exists
+                if (allUsers.find(u => u.username === newUsername.trim() && u.id !== id)) {
+                    alert('❌ Username already exists!');
+                    return;
+                }
+                user.username = newUsername.trim();
+            }
+
             const newPassword = prompt(`Edit Password for ${user.name}\n\nEnter new password (leave blank to keep current):`);
             if (newPassword !== null && newPassword.trim()) {
                 user.password = newPassword.trim();
+            }
+
+            if (newUsername || newPassword) {
                 saveData();
-                alert('✅ Password updated successfully!');
+                setTimeout(() => saveData(), 500); // Force double save
+                alert('✅ User updated successfully!');
+                loadUsers();
             }
         }
 
@@ -1498,12 +1540,19 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             const user = allUsers.find(u => u.id === id);
             if (!user) return;
 
-            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nThis action cannot be undone.`)) {
+            // Check permission - only admin, DO, GO, HOS can delete
+            if (!['admin', 'do', 'go', 'hos'].includes(currentUser.role)) {
+                alert('❌ You do not have permission to delete users.');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nUsername: ${user.username}\nRole: ${getRoleName(user.role)}\n\nThis action cannot be undone.`)) {
                 return;
             }
 
             allUsers = allUsers.filter(u => u.id !== id);
             saveData();
+            setTimeout(() => saveData(), 500); // Force double save
             alert('✅ User deleted successfully!');
             loadUsers();
         }
