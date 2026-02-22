@@ -1513,27 +1513,81 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
                 return;
             }
 
-            const newUsername = prompt(`Edit Username for ${user.name}\n\nCurrent username: ${user.username}\nEnter new username (leave blank to keep current):`);
-            if (newUsername !== null && newUsername.trim()) {
-                // Check if username already exists
-                if (allUsers.find(u => u.username === newUsername.trim() && u.id !== id)) {
-                    alert('❌ Username already exists!');
-                    return;
-                }
-                user.username = newUsername.trim();
+            // Create edit modal
+            document.getElementById('modalContainer').innerHTML = `
+                <div class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>✏️ Edit User</h3>
+                            <button class="close-btn" onclick="closeModal()">&times;</button>
+                        </div>
+                        <form onsubmit="updateUser(event, ${id})">
+                            <div class="form-group">
+                                <label>Full Name *</label>
+                                <input type="text" id="editName" value="${user.name}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Username *</label>
+                                <input type="text" id="editUsername" value="${user.username}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>New Password (leave blank to keep current)</label>
+                                <input type="password" id="editPassword" placeholder="Enter new password or leave blank">
+                            </div>
+                            <div class="form-group">
+                                <label>Role</label>
+                                <input type="text" value="${getRoleName(user.role)}" disabled style="background: #f3f4f6;">
+                            </div>
+                            ${user.group ? `
+                                <div class="form-group">
+                                    <label>Group</label>
+                                    <input type="text" value="${user.group}" disabled style="background: #f3f4f6;">
+                                </div>
+                            ` : ''}
+                            <div class="btn-group" style="margin-top: 20px;">
+                                <button type="submit" class="btn btn-success">💾 Save Changes</button>
+                                <button type="button" class="btn" style="background: #6b7280; color: white;" onclick="closeModal()">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateUser(e, id) {
+            e.preventDefault();
+            
+            const user = allUsers.find(u => u.id === id);
+            if (!user) return;
+
+            const newName = document.getElementById('editName').value.trim();
+            const newUsername = document.getElementById('editUsername').value.trim();
+            const newPassword = document.getElementById('editPassword').value.trim();
+
+            // Check if username already exists (excluding current user)
+            if (allUsers.find(u => u.username === newUsername && u.id !== id)) {
+                alert('❌ Username already exists!');
+                return;
             }
 
-            const newPassword = prompt(`Edit Password for ${user.name}\n\nEnter new password (leave blank to keep current):`);
-            if (newPassword !== null && newPassword.trim()) {
-                user.password = newPassword.trim();
+            // Update user
+            user.name = newName;
+            user.username = newUsername;
+            if (newPassword) {
+                user.password = newPassword;
             }
 
-            if (newUsername || newPassword) {
+            closeModal();
+            
+            // FORCE IMMEDIATE SAVE
+            saveData();
+            setTimeout(() => {
                 saveData();
-                setTimeout(() => saveData(), 500); // Force double save
-                alert('✅ User updated successfully!');
-                loadUsers();
-            }
+                console.log('🚨 FORCED SAVE after edit!');
+            }, 500);
+            
+            alert('✅ User updated successfully!');
+            loadUsers();
         }
 
         function deleteUser(id) {
