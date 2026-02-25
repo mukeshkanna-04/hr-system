@@ -1,35 +1,47 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-from pymongo import MongoClient
-from pymongo.server_api import ServerApi
-from bson.objectid import ObjectId
+import firebase_admin
+from firebase_admin import credentials, firestore
 from werkzeug.security import generate_password_hash
-from datetime import datetime
 import os
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key')
 CORS(app)
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://mukeshkanna10102004_db_user:Mukesh10102004@hr-cluster.glsbk8q.mongodb.net/HRSystem?retryWrites=true&w=majority')
-
+# Initialize Firebase
 try:
-    client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
-    client.admin.command('ping')
-    db = client.HRSystem
-    print("✅ MongoDB connected!")
+    # For Render deployment, use environment variable for credentials
+    cred_dict = {
+        "type": "service_account",
+        "project_id": "hr-daily-reporting-system",
+        "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
+        "private_key": os.getenv('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
+        "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
+        "client_id": os.getenv('FIREBASE_CLIENT_ID'),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": os.getenv('FIREBASE_CERT_URL')
+    }
+    
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("✅ Firebase connected!")
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f"❌ Firebase error: {e}")
     db = None
 
-def serialize(doc):
-    if doc and '_id' in doc:
-        doc['_id'] = str(doc['_id'])
-    return doc
-
 def init_users():
-    if db is None or db.users.count_documents({}) > 0:
+    if db is None:
         return
+    
+    # Check if users already exist
+    users_ref = db.collection('users')
+    if len(list(users_ref.limit(1).stream())) > 0:
+        return
+    
     users = [
         {'username': 'hradmin', 'password': generate_password_hash('Admin@2024'), 'name': 'HR Administrator', 'role': 'admin', 'group': None},
         {'username': 'do.sharma', 'password': generate_password_hash('DO@2024'), 'name': 'Ms. Priya Sharma', 'role': 'do', 'group': None},
@@ -62,8 +74,11 @@ def init_users():
         {'username': 'user.dak1', 'password': generate_password_hash('User@2024'), 'name': 'Mr. Rahul Singh', 'role': 'user', 'group': 'DAK'},
         {'username': 'user.dak2', 'password': generate_password_hash('User@2024'), 'name': 'Ms. Anita Patel', 'role': 'user', 'group': 'DAK'}
     ]
-    db.users.insert_many(users)
-    print(f"✅ Created {len(users)} users")
+    
+    for user in users:
+        users_ref.add(user)
+    
+    print(f"✅ Created {len(users)} users in Firebase!")
 
 @app.route('/')
 def home():
@@ -74,11 +89,35 @@ def home():
 def get_data():
     if db is None:
         return jsonify({'success': False, 'users': [], 'reports': [], 'tasks': []})
-    init_users()
-    users = [serialize(u) for u in db.users.find()]
-    reports = [serialize(r) for r in db.reports.find()]
-    tasks = [serialize(t) for t in db.tasks.find()]
-    return jsonify({'success': True, 'users': users, 'reports': reports, 'tasks': tasks})
+    
+    try:
+        init_users()
+        
+        # Get users
+        users = []
+        for doc in db.collection('users').stream():
+            user_data = doc.to_dict()
+            user_data['id'] = doc.id
+            users.append(user_data)
+        
+        # Get reports
+        reports = []
+        for doc in db.collection('reports').stream():
+            report_data = doc.to_dict()
+            report_data['id'] = doc.id
+            reports.append(report_data)
+        
+        # Get tasks
+        tasks = []
+        for doc in db.collection('tasks').stream():
+            task_data = doc.to_dict()
+            task_data['id'] = doc.id
+            tasks.append(task_data)
+        
+        return jsonify({'success': True, 'users': users, 'reports': reports, 'tasks': tasks})
+    except Exception as e:
+        print(f"❌ Get error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/data', methods=['POST'])
 def save_data():
@@ -88,34 +127,37 @@ def save_data():
     try:
         data = request.json
         
-        # Save users - CRITICAL: Remove _id before updating!
-        for u in data.get('users', []):
-            if '_id' in u and u['_id']:
-                user_id = ObjectId(u['_id']) if isinstance(u['_id'], str) else u['_id']
-                # Create copy without _id for update
-                update_data = {k: v for k, v in u.items() if k != '_id'}
-                db.users.update_one({'_id': user_id}, {'$set': update_data}, upsert=True)
+        # Save users
+        for user in data.get('users', []):
+            if 'id' in user and user['id']:
+                # Update existing
+                doc_id = user['id']
+                user_data = {k: v for k, v in user.items() if k != 'id'}
+                db.collection('users').document(doc_id).set(user_data)
             else:
-                # New user - insert directly
-                db.users.insert_one(u)
+                # Create new
+                user_data = {k: v for k, v in user.items() if k != 'id'}
+                db.collection('users').add(user_data)
         
         # Save reports
-        for r in data.get('reports', []):
-            if '_id' in r and r['_id']:
-                report_id = ObjectId(r['_id']) if isinstance(r['_id'], str) else r['_id']
-                update_data = {k: v for k, v in r.items() if k != '_id'}
-                db.reports.update_one({'_id': report_id}, {'$set': update_data}, upsert=True)
+        for report in data.get('reports', []):
+            if 'id' in report and report['id']:
+                doc_id = report['id']
+                report_data = {k: v for k, v in report.items() if k != 'id'}
+                db.collection('reports').document(doc_id).set(report_data)
             else:
-                db.reports.insert_one(r)
+                report_data = {k: v for k, v in report.items() if k != 'id'}
+                db.collection('reports').add(report_data)
         
         # Save tasks
-        for t in data.get('tasks', []):
-            if '_id' in t and t['_id']:
-                task_id = ObjectId(t['_id']) if isinstance(t['_id'], str) else t['_id']
-                update_data = {k: v for k, v in t.items() if k != '_id'}
-                db.tasks.update_one({'_id': task_id}, {'$set': update_data}, upsert=True)
+        for task in data.get('tasks', []):
+            if 'id' in task and task['id']:
+                doc_id = task['id']
+                task_data = {k: v for k, v in task.items() if k != 'id'}
+                db.collection('tasks').document(doc_id).set(task_data)
             else:
-                db.tasks.insert_one(t)
+                task_data = {k: v for k, v in task.items() if k != 'id'}
+                db.collection('tasks').add(task_data)
         
         return jsonify({'success': True})
     except Exception as e:
@@ -126,11 +168,29 @@ def save_data():
 def initialize():
     if db is None:
         return jsonify({'success': False}), 500
-    db.users.delete_many({})
-    db.reports.delete_many({})
-    db.tasks.delete_many({})
-    init_users()
-    return jsonify({'success': True, 'message': '30 users created!'})
+    
+    try:
+        # Delete all users
+        users_ref = db.collection('users')
+        for doc in users_ref.stream():
+            doc.reference.delete()
+        
+        # Delete all reports
+        reports_ref = db.collection('reports')
+        for doc in reports_ref.stream():
+            doc.reference.delete()
+        
+        # Delete all tasks
+        tasks_ref = db.collection('tasks')
+        for doc in tasks_ref.stream():
+            doc.reference.delete()
+        
+        # Recreate default users
+        init_users()
+        
+        return jsonify({'success': True, 'message': '30 users created in Firebase!'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     if db is not None:
