@@ -4,6 +4,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from werkzeug.security import generate_password_hash
 import os
+import json
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key')
@@ -11,24 +12,25 @@ CORS(app)
 
 # Initialize Firebase
 try:
-    # For Render deployment, use environment variable for credentials
-    cred_dict = {
-        "type": "service_account",
-        "project_id": "hr-daily-reporting-system",
-        "private_key_id": os.getenv('FIREBASE_PRIVATE_KEY_ID'),
-        "private_key": os.getenv('FIREBASE_PRIVATE_KEY', '').replace('\\n', '\n'),
-        "client_email": os.getenv('FIREBASE_CLIENT_EMAIL'),
-        "client_id": os.getenv('FIREBASE_CLIENT_ID'),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": os.getenv('FIREBASE_CERT_URL')
-    }
+    # Method 1: Using service account JSON file (for local development)
+    if os.path.exists('serviceAccount.json'):
+        cred = credentials.Certificate('serviceAccount.json')
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firebase connected (JSON file)!")
     
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("✅ Firebase connected!")
+    # Method 2: Using environment variable with full JSON
+    elif os.getenv('FIREBASE_SERVICE_ACCOUNT'):
+        service_account_info = json.loads(os.getenv('FIREBASE_SERVICE_ACCOUNT'))
+        cred = credentials.Certificate(service_account_info)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firebase connected (ENV JSON)!")
+    
+    else:
+        print("❌ No Firebase credentials found!")
+        db = None
+        
 except Exception as e:
     print(f"❌ Firebase error: {e}")
     db = None
@@ -39,7 +41,9 @@ def init_users():
     
     # Check if users already exist
     users_ref = db.collection('users')
-    if len(list(users_ref.limit(1).stream())) > 0:
+    existing = list(users_ref.limit(1).stream())
+    if len(existing) > 0:
+        print("Users already exist, skipping initialization")
         return
     
     users = [
@@ -93,21 +97,18 @@ def get_data():
     try:
         init_users()
         
-        # Get users
         users = []
         for doc in db.collection('users').stream():
             user_data = doc.to_dict()
             user_data['id'] = doc.id
             users.append(user_data)
         
-        # Get reports
         reports = []
         for doc in db.collection('reports').stream():
             report_data = doc.to_dict()
             report_data['id'] = doc.id
             reports.append(report_data)
         
-        # Get tasks
         tasks = []
         for doc in db.collection('tasks').stream():
             task_data = doc.to_dict()
@@ -127,19 +128,15 @@ def save_data():
     try:
         data = request.json
         
-        # Save users
         for user in data.get('users', []):
             if 'id' in user and user['id']:
-                # Update existing
                 doc_id = user['id']
                 user_data = {k: v for k, v in user.items() if k != 'id'}
                 db.collection('users').document(doc_id).set(user_data)
             else:
-                # Create new
                 user_data = {k: v for k, v in user.items() if k != 'id'}
                 db.collection('users').add(user_data)
         
-        # Save reports
         for report in data.get('reports', []):
             if 'id' in report and report['id']:
                 doc_id = report['id']
@@ -149,7 +146,6 @@ def save_data():
                 report_data = {k: v for k, v in report.items() if k != 'id'}
                 db.collection('reports').add(report_data)
         
-        # Save tasks
         for task in data.get('tasks', []):
             if 'id' in task and task['id']:
                 doc_id = task['id']
@@ -162,34 +158,6 @@ def save_data():
         return jsonify({'success': True})
     except Exception as e:
         print(f"❌ Save error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/init', methods=['POST'])
-def initialize():
-    if db is None:
-        return jsonify({'success': False}), 500
-    
-    try:
-        # Delete all users
-        users_ref = db.collection('users')
-        for doc in users_ref.stream():
-            doc.reference.delete()
-        
-        # Delete all reports
-        reports_ref = db.collection('reports')
-        for doc in reports_ref.stream():
-            doc.reference.delete()
-        
-        # Delete all tasks
-        tasks_ref = db.collection('tasks')
-        for doc in tasks_ref.stream():
-            doc.reference.delete()
-        
-        # Recreate default users
-        init_users()
-        
-        return jsonify({'success': True, 'message': '30 users created in Firebase!'})
-    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
