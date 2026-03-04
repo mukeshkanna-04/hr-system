@@ -12,8 +12,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key-2024')
 CORS(app)
 
 # PostgreSQL Configuration
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/hr_system')
-
+DATABASE_URL = "postgresql://hr_database_7u5x_user:dz4Iw2EBleLZjmYRjtqWs37aWGOfF7kZ@dpg-d6js2kfgi27c73cb8urg-a.singapore-postgres.render.com/hr_database_7u5x?sslmode=require"
 def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
