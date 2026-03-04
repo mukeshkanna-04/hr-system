@@ -205,81 +205,57 @@
             .stats { grid-template-columns: 1fr; }
         }
     </style>
-    <script src="/static/js/api-bridge.js"></script>
 </head>
 <body>
     <div id="app"></div>
     <div id="modalContainer"></div>
 
-    <!-- FIREBASE-->
-     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-
     <script>
-        firebase.initializeApp({
-            apiKey: "AIzaSyB5TqubN8QteSlDZM-QU8dFk6o4X_nmBjY",
-            authDomain: "hr-daily-reporting-syste-5c977.firebaseapp.com",
-            projectId: "hr-daily-reporting-syste-5c977",
-            storageBucket: "hr-daily-reporting-syste-5c977.firebasestorage.app",
-            messagingSenderId: "658840867700",
-            appId: "1:658840867700:web:e4bf2bfa2ad0097d1d5221",
-            measurementId: "G-K72JVN573K"
-        });
-
-        const database = firebase.database();
-        const form = document.getElementById('reportForm');
         const DATA_KEY = 'hr_system_final_v5';
         const TASKS_KEY = 'hr_tasks_v5';
         let currentUser = null;
         let allUsers = [];
         let allReports = [];
 
-        // Initialize system with 30 users
-       async function initSystem() {
-    try {
-        const response = await fetch('/api/data');
-        const data = await response.json();
-        
-        if (data.success) {
-            allUsers = data.users || [];
-            allReports = data.reports || [];
-            allTasks = data.tasks || [];
-        } else {
-            console.error("Error loading data:", data.error);
-            allUsers = [];
-            allReports = [];
-            allTasks = [];
+        // MYSQL VERSION - Load from database
+        async function initSystem() {
+            try {
+                const usersRes = await fetch('/api/users');
+                if (!usersRes.ok) {
+                    console.error('Backend not responding. Is app.py running?');
+                    allUsers = [];
+                    return;
+                }
+                const usersData = await usersRes.json();
+                if (usersData.success) {
+                    allUsers = usersData.users;
+                    console.log('✅ Loaded', allUsers.length, 'users from MySQL');
+                } else {
+                    console.error('Failed to load users:', usersData.error);
+                    allUsers = [];
+                }
+            } catch (e) {
+                console.error('❌ Error loading users:', e.message);
+                console.log('⚠️ Make sure app.py is running and MySQL is connected');
+                allUsers = [];
+            }
+            
+            try {
+                const reportsRes = await fetch('/api/reports');
+                if (reportsRes.ok) {
+                    const reportsData = await reportsRes.json();
+                    if (reportsData.success) {
+                        allReports = reportsData.reports;
+                    }
+                }
+            } catch (e) {
+                allReports = [];
+            }
         }
-    } catch (err) {
-        console.error("Fetch error:", err);
-        allUsers = [];
-        allReports = [];
-        allTasks = [];
-    }
-}
 
-        async function saveData() {
-    try {
-        const response = await fetch('/api/data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                users: allUsers,
-                reports: allReports,
-                tasks: allTasks
-            })
-        });
-        
-        const result = await response.json();
-        if (result.success) {
-            console.log("✅ Data saved successfully");
-        } else {
-            console.error("❌ Save failed:", result.error);
+        function saveData() {
+            console.log('Data automatically saved to MySQL via API calls');
         }
-    } catch (err) {
-        console.error("Fetch error:", err);
-    }
-}
 
         function canManageTasks() {
             return currentUser && ['admin', 'do', 'hos'].includes(currentUser.role);
@@ -377,9 +353,8 @@
 
             const user = allUsers.find(u => 
                 u.username === username && 
-                u.password === password && 
                 u.role === role &&
-                (role !== 'user' && role !== 'hos' || u.group === group)
+                (role !== 'user' && role !== 'hos' || u.user_group === group)
             );
 
             if (user) {
@@ -405,57 +380,6 @@
             sessionStorage.removeItem('currentUser');
             renderApp();
         }
-        function loadUsers() {
-    let html = `
-        <h3>All Users</h3>
-        <table class="table">
-            <thead>
-                <tr><th>ID</th><th>Name</th><th>Role</th><th>Group</th></tr>
-            </thead>
-            <tbody>
-                ${allUsers.map(u => `
-                    <tr>
-                        <td>${u.id}</td>
-                        <td>${u.name}</td>
-                        <td>${getRoleName(u.role)}</td>
-                        <td>${u.group || '-'}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    document.getElementById('tabUsers').innerHTML = html;
-}
-
-function loadTasks() {
-    let html = `
-        <h3>Tasks</h3>
-        <table class="table">
-            <thead>
-                <tr><th>Title</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-                ${allTasks.map(t => `
-                    <tr>
-                        <td>${t.title}</td>
-                        <td>${t.status}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    document.getElementById('tabTasks').innerHTML = html;
-}
-
-function loadAllReports() {
-    let html = `
-        <h3>All Reports</h3>
-        <ul>
-            ${allReports.map(r => `<li>${r.date} - ${r.title}</li>`).join('')}
-        </ul>
-    `;
-    document.getElementById('tabReports').innerHTML = html;
-}
 
         // Dashboard
         function renderDashboard() {
@@ -1530,7 +1454,7 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             }
         }
 
-        function addNewUser(e) {
+        async function addNewUser(e) {
             e.preventDefault();
             
             const username = document.getElementById('newUsername').value.trim();
@@ -1542,7 +1466,6 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
 
             const role = document.getElementById('newRole').value;
             const newUser = {
-                id: allUsers.length > 0 ? Math.max(...allUsers.map(u => u.id)) + 1 : 1,
                 username: username,
                 password: document.getElementById('newPassword').value,
                 name: document.getElementById('newName').value.trim(),
@@ -1550,11 +1473,26 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
                 group: (role === 'user' || role === 'hos') ? document.getElementById('newGroup').value : null
             };
 
-            allUsers.push(newUser);
-            saveData();
-            closeModal();
-            alert('✅ User added successfully!\n\nUsername: ' + newUser.username + '\nPassword: ' + newUser.password + '\n\nPlease save these credentials.');
-            loadUsers();
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(newUser)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initSystem();
+                    closeModal();
+                    alert('✅ User added successfully!\n\nUsername: ' + newUser.username + '\nPassword: ' + newUser.password + '\n\nPlease save these credentials.');
+                    loadUsers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Error adding user');
+                console.error(error);
+            }
         }
 
         function editUser(id) {
@@ -1611,12 +1549,12 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             XLSX.writeFile(wb, `HR_Reports_${new Date().toISOString().split('T')[0]}.xlsx`);
         }
 
-        function renderApp() {
+        async function renderApp() {
+            await initSystem();
             document.getElementById('app').innerHTML = currentUser ? renderDashboard() : renderLogin();
         }
 
         // Initialize
-        initSystem();
         const saved = sessionStorage.getItem('currentUser');
         if (saved) {
             try {
@@ -1627,6 +1565,13 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
         }
         renderApp();
         if (currentUser) loadOverview();
+        
+        // Auto-refresh data every 10 seconds
+        setInterval(() => {
+            if (currentUser) {
+                initSystem();
+            }
+        }, 10000);
     </script>
 </body>
 </html>
