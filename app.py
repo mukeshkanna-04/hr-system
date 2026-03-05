@@ -170,6 +170,7 @@ def get_users():
         conn.close()
         return jsonify({'success': True, 'users': users})
     except Exception as e:
+        print(f"❌ Error getting users: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/users', methods=['POST'])
@@ -196,8 +197,10 @@ def add_user():
         conn.commit()
         cursor.close()
         conn.close()
+        print(f"✅ User created: {data['username']}")
         return jsonify({'success': True, 'id': user_id})
     except Exception as e:
+        print(f"❌ Error adding user: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
@@ -230,8 +233,10 @@ def update_user(user_id):
         conn.commit()
         cursor.close()
         conn.close()
+        print(f"✅ User updated: ID {user_id}")
         return jsonify({'success': True})
     except Exception as e:
+        print(f"❌ Error updating user: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
@@ -247,8 +252,10 @@ def delete_user(user_id):
         conn.commit()
         cursor.close()
         conn.close()
+        print(f"✅ User deleted: ID {user_id}")
         return jsonify({'success': True})
     except Exception as e:
+        print(f"❌ Error deleting user: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/reports', methods=['GET'])
@@ -274,6 +281,7 @@ def get_reports():
         conn.close()
         return jsonify({'success': True, 'reports': reports})
     except Exception as e:
+        print(f"❌ Error getting reports: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/reports', methods=['POST'])
@@ -299,13 +307,15 @@ def add_report():
         conn.commit()
         cursor.close()
         conn.close()
+        print(f"✅ Report created: ID {report_id}")
         return jsonify({'success': True, 'id': report_id})
     except Exception as e:
+        print(f"❌ Error adding report: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
-    """Get all tasks"""
+    """Get all tasks - FIXED VERSION"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'success': False, 'error': 'Database connection failed'}), 500
@@ -315,20 +325,37 @@ def get_tasks():
         cursor.execute("SELECT * FROM tasks ORDER BY created_at DESC")
         tasks = cursor.fetchall()
         
-        # Convert dates
+        # FIX: Map database column names to frontend expected names
         for task in tasks:
-            if task.get('dueDate'):
+            # Handle both camelCase and lowercase column names
+            if 'userid' in task and 'userId' not in task:
+                task['userId'] = task['userid']
+            if 'username' in task and 'userName' not in task:
+                task['userName'] = task['username']
+            if 'duedate' in task and 'dueDate' not in task:
+                task['dueDate'] = task['duedate']
+            if 'assignedby' in task and 'assignedBy' not in task:
+                task['assignedBy'] = task['assignedby']
+            if 'assigneddate' in task and 'assignedDate' not in task:
+                task['assignedDate'] = task['assigneddate']
+                
+            # Convert dates to strings
+            if task.get('dueDate') and hasattr(task['dueDate'], 'strftime'):
                 task['dueDate'] = task['dueDate'].strftime('%Y-%m-%d')
+            elif task.get('duedate') and hasattr(task['duedate'], 'strftime'):
+                task['dueDate'] = task['duedate'].strftime('%Y-%m-%d')
         
         cursor.close()
         conn.close()
+        print(f"✅ Loaded {len(tasks)} tasks from PostgreSQL")
         return jsonify({'success': True, 'tasks': tasks})
     except Exception as e:
+        print(f"❌ Error getting tasks: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks', methods=['POST'])
 def add_task():
-    """Add new task"""
+    """Add new task - FIXED VERSION"""
     print("🔵 Received task creation request")
     conn = get_db_connection()
     if not conn:
@@ -408,8 +435,10 @@ def update_task(task_id):
         
         cursor.close()
         conn.close()
+        print(f"✅ Task updated: ID {task_id}")
         return jsonify({'success': True})
     except Exception as e:
+        print(f"❌ Error updating task: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
@@ -425,8 +454,10 @@ def delete_task(task_id):
         conn.commit()
         cursor.close()
         conn.close()
+        print(f"✅ Task deleted: ID {task_id}")
         return jsonify({'success': True})
     except Exception as e:
+        print(f"❌ Error deleting task: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
