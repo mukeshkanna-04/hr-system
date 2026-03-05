@@ -4,6 +4,3 @@ psycopg2-binary==2.9.9
 Werkzeug==3.0.1
 gunicorn==21.2.0
 python-dotenv==0.19.2
-pytest==7.2.0
-pytest-cov==3.0.0       
-

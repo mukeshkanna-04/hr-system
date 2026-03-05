@@ -229,14 +229,14 @@
                 const usersData = await usersRes.json();
                 if (usersData.success) {
                     allUsers = usersData.users;
-                    console.log('✅ Loaded', allUsers.length, 'users from MySQL');
+                    console.log('✅ Loaded', allUsers.length, 'users from PostgreSQL');
                 } else {
                     console.error('Failed to load users:', usersData.error);
                     allUsers = [];
                 }
             } catch (e) {
                 console.error('❌ Error loading users:', e.message);
-                console.log('⚠️ Make sure app.py is running and MySQL is connected');
+                console.log('⚠️ Make sure app.py is running and PostgreSQL is connected');
                 allUsers = [];
             }
             
@@ -246,10 +246,24 @@
                     const reportsData = await reportsRes.json();
                     if (reportsData.success) {
                         allReports = reportsData.reports;
+                        console.log('✅ Loaded', allReports.length, 'reports from PostgreSQL');
                     }
                 }
             } catch (e) {
                 allReports = [];
+            }
+            
+            try {
+                const tasksRes = await fetch('/api/tasks');
+                if (tasksRes.ok) {
+                    const tasksData = await tasksRes.json();
+                    if (tasksData.success) {
+                        allTasks = tasksData.tasks || [];
+                        console.log('✅ Loaded', allTasks.length, 'tasks from PostgreSQL');
+                    }
+                }
+            } catch (e) {
+                allTasks = [];
             }
         }
 
@@ -504,33 +518,52 @@
             return labels[i-1];
         }
 
-        function submitReport(e) {
+        async function submitReport(e) {
             e.preventDefault();
             const date = document.getElementById('reportDate').value;
 
-            if (allReports.find(r => r.userId === currentUser.id && r.date === date)) {
+            if (allReports.find(r => r.userId === currentUser.id && (r.date === date || r.report_date === date))) {
                 alert('You already submitted a report for this date!');
                 return;
             }
 
             const report = {
-                id: Date.now(),
                 userId: currentUser.id,
                 userName: currentUser.name,
-                group: currentUser.group || 'Admin',
+                group: currentUser.user_group || currentUser.group,
                 date: date,
-                time: new Date().toTimeString().split(' ')[0]
+                time: new Date().toTimeString().split(' ')[0],
+                f1: document.getElementById('f1').value,
+                f2: document.getElementById('f2').value,
+                f3: document.getElementById('f3').value,
+                f4: document.getElementById('f4').value,
+                f5: document.getElementById('f5').value,
+                f6: document.getElementById('f6').value,
+                f7: document.getElementById('f7').value,
+                f8: document.getElementById('f8').value
             };
 
-            for (let i = 1; i <= 8; i++) {
-                report['f' + i] = document.getElementById('f' + i).value;
+            try {
+                const response = await fetch('/api/reports', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(report)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initSystem();  // Reload from database
+                    alert('✅ Report submitted successfully!');
+                    document.getElementById('reportForm').reset();
+                    document.getElementById('reportDate').value = new Date().toISOString().split('T')[0];
+                    loadOverview();  // Refresh overview if it exists
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Error submitting report: ' + error.message);
+                console.error(error);
             }
-
-            allReports.push(report);
-            saveData();
-            alert('✅ Report submitted successfully!');
-            document.getElementById('reportForm').reset();
-            document.getElementById('reportDate').value = new Date().toISOString().split('T')[0];
         }
 
         function loadMyReports() {
@@ -586,17 +619,16 @@
         // TASK WORKFLOW SYSTEM - Complete with file upload
         
         function loadMyAssignedTasks() {
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
-            const myTasks = tasks.filter(t => t.userId === currentUser.id);
+            const myTasks = allTasks.filter(t => t.userId === currentUser.id || t.userid === currentUser.id);
             const container = document.getElementById('myTasksList');
             const section = document.getElementById('myTasksSection');
             
             if (myTasks.length === 0) {
-                section.style.display = 'none';
+                if (section) section.style.display = 'none';
                 return;
             }
             
-            section.style.display = 'block';
+            if (section) section.style.display = 'block';
             
             const statusColors = {
                 'pending': '#ef4444',
@@ -692,20 +724,34 @@
             container.innerHTML = html;
         }
         
-        function acceptTask(taskId) {
+        async function acceptTask(taskId) {
             if (!confirm('Accept this task?')) return;
             
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
-            const task = tasks.find(t => t.id === taskId);
+            const task = allTasks.find(t => t.id === taskId);
             if (!task) return;
             
-            task.status = 'accepted';
-            task.acceptedDate = new Date().toISOString();
-            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-            
-            alert('✅ Task Accepted!\n\nYou can now upload files and complete the task.');
-            loadMyAssignedTasks();
-            if (canManageTasks()) loadTasks();
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        status: 'accepted'
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initSystem();  // Reload from database
+                    alert('✅ Task Accepted!\n\nYou can now upload files and complete the task.');
+                    loadMyAssignedTasks();
+                    if (canManageTasks()) loadTasks();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Error accepting task: ' + error.message);
+                console.error(error);
+            }
         }
         
         // Request Due Date Extension
@@ -779,9 +825,8 @@
             }
         }
         
-        function completeTask(taskId) {
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
-            const task = tasks.find(t => t.id === taskId);
+        async function completeTask(taskId) {
+            const task = allTasks.find(t => t.id === taskId);
             if (!task) return;
             
             if (!task.uploadedFiles || task.uploadedFiles.length === 0) {
@@ -791,13 +836,28 @@
             
             if (!confirm('Mark this task as completed?\n\nThe task will be sent to the admin for review.')) return;
             
-            task.status = 'completed';
-            task.completedDate = new Date().toISOString();
-            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-            
-            alert('✅ Task marked as completed!\n\nThe admin will review your submission.');
-            loadMyAssignedTasks();
-            if (canManageTasks()) loadTasks();
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        status: 'completed'
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initSystem();  // Reload from database
+                    alert('✅ Task marked as completed!\n\nThe admin will review your submission.');
+                    loadMyAssignedTasks();
+                    if (canManageTasks()) loadTasks();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Error completing task: ' + error.message);
+                console.error(error);
+            }
         }
         
         function approveTask(taskId) {
@@ -1036,11 +1096,11 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
         function loadTasks() {
             if (!canManageTasks()) return;
             
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const tasks = allTasks || [];
             
             let html = `
                 <div style="display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h3>✅ Task Management</h3>
+                    <h3>✅ Task Management (${tasks.length} tasks)</h3>
                     <button class="btn btn-success" onclick="showAssignTaskModal()">+ Assign New Task</button>
                 </div>
             `;
@@ -1182,81 +1242,69 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             }, 100);
         }
 
-        function assignTask(e) {
+        async function assignTask(e) {
             e.preventDefault();
             
             const userId = parseInt(document.getElementById('taskUserId').value);
             const user = allUsers.find(u => u.id === userId);
             
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            if (!user) {
+                alert('❌ User not found!');
+                return;
+            }
+            
             const newTask = {
-                id: Date.now(),
                 userId: userId,
                 userName: user.name,
                 title: document.getElementById('taskTitle').value,
                 description: document.getElementById('taskDescription').value,
                 dueDate: document.getElementById('taskDueDate').value,
                 priority: document.getElementById('taskPriority').value,
-                status: 'pending',
-                assignedBy: currentUser.name,
-                assignedDate: new Date().toISOString(),
-                uploadedFiles: []
+                assignedBy: currentUser.name
             };
             
-            // Check if files were attached
-            const fileInput = document.getElementById('taskFiles');
-            const files = fileInput ? fileInput.files : null;
-            
-            if (files && files.length > 0) {
-                // Upload files before assigning task
-                let filesProcessed = 0;
+            try {
+                const response = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(newTask)
+                });
+                const data = await response.json();
                 
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        newTask.uploadedFiles.push({
-                            name: file.name,
-                            size: formatFileSize(file.size),
-                            type: file.type,
-                            data: e.target.result,
-                            uploadedAt: new Date().toISOString(),
-                            uploadedBy: currentUser.name + ' (Admin)'
-                        });
-                        
-                        filesProcessed++;
-                        if (filesProcessed === files.length) {
-                            // All files processed, save task
-                            tasks.push(newTask);
-                            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-                            closeModal();
-                            alert(`✅ Task assigned successfully with ${filesProcessed} file(s)!`);
-                            loadTasks();
-                        }
-                    };
-                    
-                    reader.readAsDataURL(file);
+                if (data.success) {
+                    await initSystem();  // Reload all tasks from database
+                    closeModal();
+                    alert('✅ Task assigned successfully!');
+                    loadTasks();
+                } else {
+                    alert('❌ Error: ' + data.error);
                 }
-            } else {
-                // No files, just save task
-                tasks.push(newTask);
-                localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-                closeModal();
-                alert('✅ Task assigned successfully!');
-                loadTasks();
+            } catch (error) {
+                alert('❌ Error assigning task: ' + error.message);
+                console.error(error);
             }
         }
 
-        function deleteTask(id) {
+        async function deleteTask(id) {
             if (!confirm('Delete this task?')) return;
             
-            let tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
-            tasks = tasks.filter(t => t.id !== id);
-            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-            
-            alert('✅ Task deleted!');
-            loadTasks();
+            try {
+                const response = await fetch(`/api/tasks/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initSystem();  // Reload from database
+                    alert('✅ Task deleted!');
+                    loadTasks();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Error deleting task: ' + error.message);
+                console.error(error);
+            }
         }
 
         // Admin: Edit Due Date
@@ -1499,26 +1547,114 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             const user = allUsers.find(u => u.id === id);
             if (!user) return;
 
-            const newPassword = prompt(`Edit Password for ${user.name}\n\nEnter new password (leave blank to keep current):`);
-            if (newPassword !== null && newPassword.trim()) {
-                user.password = newPassword.trim();
-                saveData();
-                alert('✅ Password updated successfully!');
-            }
+            const modal = document.getElementById('modalContainer');
+            modal.innerHTML = `
+                <div class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Edit User: ${user.name}</h3>
+                            <button class="close-btn" onclick="closeModal()">&times;</button>
+                        </div>
+                        <form onsubmit="updateUser(event, ${id})">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input type="text" id="editName" value="${user.name}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input type="text" id="editUsername" value="${user.username}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>New Password (leave blank to keep current)</label>
+                                <input type="password" id="editPassword" placeholder="Enter new password or leave blank">
+                            </div>
+                            <button type="submit" class="btn btn-success">Save Changes</button>
+                        </form>
+                    </div>
+                </div>
+            `;
         }
 
-        function deleteUser(id) {
-            const user = allUsers.find(u => u.id === id);
-            if (!user) return;
-
-            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nThis action cannot be undone.`)) {
+        async function updateUser(e, id) {
+            e.preventDefault();
+            
+            const newUsername = document.getElementById('editUsername').value.trim();
+            if (allUsers.find(u => u.username === newUsername && u.id !== id)) {
+                alert('❌ Username already exists!');
                 return;
             }
 
-            allUsers = allUsers.filter(u => u.id !== id);
-            saveData();
-            alert('✅ User deleted successfully!');
-            loadUsers();
+            const updates = {
+                username: newUsername,
+                name: document.getElementById('editName').value.trim(),
+                password: document.getElementById('editPassword').value.trim()
+            };
+
+            try {
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(updates)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initSystem();  // Reload from database
+                    closeModal();
+                    alert('✅ User updated successfully!');
+                    loadUsers();
+                } else {
+                    alert('❌ Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Error updating user: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        async function deleteUser(id) {
+            const user = allUsers.find(u => u.id === id);
+            if (!user) {
+                alert('❌ User not found!');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nUsername: ${user.username}\nRole: ${user.role}\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                console.log(`🗑️ Deleting user ID: ${id}`);
+                
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Delete response:', data);
+                
+                if (data.success) {
+                    console.log('✅ User deleted from database');
+                    
+                    // Reload all data from database
+                    await initSystem();
+                    
+                    // Force UI refresh
+                    loadUsers();
+                    
+                    alert('✅ User deleted successfully!');
+                } else {
+                    alert('❌ Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('❌ Error deleting user: ' + error.message);
+            }
         }
 
         function closeModal() {
