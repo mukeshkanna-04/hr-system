@@ -229,14 +229,14 @@
                 const usersData = await usersRes.json();
                 if (usersData.success) {
                     allUsers = usersData.users;
-                    console.log('✅ Loaded', allUsers.length, 'users from MySQL');
+                    console.log('✅ Loaded', allUsers.length, 'users from PostgreSQL');
                 } else {
                     console.error('Failed to load users:', usersData.error);
                     allUsers = [];
                 }
             } catch (e) {
                 console.error('❌ Error loading users:', e.message);
-                console.log('⚠️ Make sure app.py is running and MySQL is connected');
+                console.log('⚠️ Make sure app.py is running and PostgreSQL is connected');
                 allUsers = [];
             }
             
@@ -246,10 +246,24 @@
                     const reportsData = await reportsRes.json();
                     if (reportsData.success) {
                         allReports = reportsData.reports;
+                        console.log('✅ Loaded', allReports.length, 'reports from PostgreSQL');
                     }
                 }
             } catch (e) {
                 allReports = [];
+            }
+            
+            try {
+                const tasksRes = await fetch('/api/tasks');
+                if (tasksRes.ok) {
+                    const tasksData = await tasksRes.json();
+                    if (tasksData.success) {
+                        allTasks = tasksData.tasks || [];
+                        console.log('✅ Loaded', allTasks.length, 'tasks from PostgreSQL');
+                    }
+                }
+            } catch (e) {
+                allTasks = [];
             }
         }
 
@@ -605,17 +619,16 @@
         // TASK WORKFLOW SYSTEM - Complete with file upload
         
         function loadMyAssignedTasks() {
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
-            const myTasks = tasks.filter(t => t.userId === currentUser.id);
+            const myTasks = allTasks.filter(t => t.userId === currentUser.id || t.userid === currentUser.id);
             const container = document.getElementById('myTasksList');
             const section = document.getElementById('myTasksSection');
             
             if (myTasks.length === 0) {
-                section.style.display = 'none';
+                if (section) section.style.display = 'none';
                 return;
             }
             
-            section.style.display = 'block';
+            if (section) section.style.display = 'block';
             
             const statusColors = {
                 'pending': '#ef4444',
@@ -1083,11 +1096,11 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
         function loadTasks() {
             if (!canManageTasks()) return;
             
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            const tasks = allTasks || [];
             
             let html = `
                 <div style="display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-                    <h3>✅ Task Management</h3>
+                    <h3>✅ Task Management (${tasks.length} tasks)</h3>
                     <button class="btn btn-success" onclick="showAssignTaskModal()">+ Assign New Task</button>
                 </div>
             `;
@@ -1229,69 +1242,46 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
             }, 100);
         }
 
-        function assignTask(e) {
+        async function assignTask(e) {
             e.preventDefault();
             
             const userId = parseInt(document.getElementById('taskUserId').value);
             const user = allUsers.find(u => u.id === userId);
             
-            const tasks = JSON.parse(localStorage.getItem(TASKS_KEY) || '[]');
+            if (!user) {
+                alert('❌ User not found!');
+                return;
+            }
+            
             const newTask = {
-                id: Date.now(),
                 userId: userId,
                 userName: user.name,
                 title: document.getElementById('taskTitle').value,
                 description: document.getElementById('taskDescription').value,
                 dueDate: document.getElementById('taskDueDate').value,
                 priority: document.getElementById('taskPriority').value,
-                status: 'pending',
-                assignedBy: currentUser.name,
-                assignedDate: new Date().toISOString(),
-                uploadedFiles: []
+                assignedBy: currentUser.name
             };
             
-            // Check if files were attached
-            const fileInput = document.getElementById('taskFiles');
-            const files = fileInput ? fileInput.files : null;
-            
-            if (files && files.length > 0) {
-                // Upload files before assigning task
-                let filesProcessed = 0;
+            try {
+                const response = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(newTask)
+                });
+                const data = await response.json();
                 
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        newTask.uploadedFiles.push({
-                            name: file.name,
-                            size: formatFileSize(file.size),
-                            type: file.type,
-                            data: e.target.result,
-                            uploadedAt: new Date().toISOString(),
-                            uploadedBy: currentUser.name + ' (Admin)'
-                        });
-                        
-                        filesProcessed++;
-                        if (filesProcessed === files.length) {
-                            // All files processed, save task
-                            tasks.push(newTask);
-                            localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-                            closeModal();
-                            alert(`✅ Task assigned successfully with ${filesProcessed} file(s)!`);
-                            loadTasks();
-                        }
-                    };
-                    
-                    reader.readAsDataURL(file);
+                if (data.success) {
+                    await initSystem();  // Reload all tasks from database
+                    closeModal();
+                    alert('✅ Task assigned successfully!');
+                    loadTasks();
+                } else {
+                    alert('❌ Error: ' + data.error);
                 }
-            } else {
-                // No files, just save task
-                tasks.push(newTask);
-                localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-                closeModal();
-                alert('✅ Task assigned successfully!');
-                loadTasks();
+            } catch (error) {
+                alert('❌ Error assigning task: ' + error.message);
+                console.error(error);
             }
         }
 
@@ -1624,28 +1614,46 @@ ${task.uploadedFiles && task.uploadedFiles.length > 0 ? `\nUploaded Files (${tas
 
         async function deleteUser(id) {
             const user = allUsers.find(u => u.id === id);
-            if (!user) return;
+            if (!user) {
+                alert('❌ User not found!');
+                return;
+            }
 
-            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nThis action cannot be undone.`)) {
+            if (!confirm(`Are you sure you want to delete user "${user.name}"?\n\nUsername: ${user.username}\nRole: ${user.role}\n\nThis action cannot be undone.`)) {
                 return;
             }
 
             try {
+                console.log(`🗑️ Deleting user ID: ${id}`);
+                
                 const response = await fetch(`/api/users/${id}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'}
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('Delete response:', data);
                 
                 if (data.success) {
-                    await initSystem();  // Reload from database
-                    alert('✅ User deleted successfully!');
+                    console.log('✅ User deleted from database');
+                    
+                    // Reload all data from database
+                    await initSystem();
+                    
+                    // Force UI refresh
                     loadUsers();
+                    
+                    alert('✅ User deleted successfully!');
                 } else {
-                    alert('❌ Error: ' + data.error);
+                    alert('❌ Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
+                console.error('Delete error:', error);
                 alert('❌ Error deleting user: ' + error.message);
-                console.error(error);
             }
         }
 
