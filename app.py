@@ -12,7 +12,8 @@ app.secret_key = os.getenv('SECRET_KEY', 'hr-secret-key-2024')
 CORS(app)
 
 # PostgreSQL Configuration
-DATABASE_URL = "postgresql://hr_database_7u5x_user:dz4Iw2EBleLZjmYRjtqWs37aWGOfF7kZ@dpg-d6js2kfgi27c73cb8urg-a.singapore-postgres.render.com/hr_database_7u5x?sslmode=require"
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/hr_system')
+
 def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -328,28 +329,46 @@ def get_tasks():
 @app.route('/api/tasks', methods=['POST'])
 def add_task():
     """Add new task"""
+    print("🔵 Received task creation request")
     conn = get_db_connection()
     if not conn:
+        print("❌ Database connection failed")
         return jsonify({'success': False, 'error': 'Database connection failed'}), 500
     
     try:
         data = request.json
+        print(f"📝 Task data received: {data}")
+        
         cursor = conn.cursor()
+        
+        # Handle both camelCase and lowercase field names
+        user_id = data.get('userId') or data.get('userid')
+        user_name = data.get('userName') or data.get('username')
+        title = data.get('title')
+        description = data.get('description', '')
+        due_date = data.get('dueDate') or data.get('duedate')
+        priority = data.get('priority', 'Medium')
+        assigned_by = data.get('assignedBy') or data.get('assignedby', 'Admin')
+        
+        if not user_id or not user_name or not title:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        print(f"Creating task: {title} for user {user_name} (ID: {user_id})")
         
         cursor.execute(
             """INSERT INTO tasks (userId, userName, title, description, dueDate, priority, 
                status, assignedBy, assignedDate) 
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-            (data['userId'], data['userName'], data['title'], data.get('description'),
-             data.get('dueDate'), data.get('priority'), 'Pending', 
-             data.get('assignedBy'), datetime.now())
+            (user_id, user_name, title, description, due_date, priority, 'Pending', assigned_by, datetime.now())
         )
         task_id = cursor.fetchone()[0]
         conn.commit()
+        print(f"✅ Task created with ID: {task_id}")
         cursor.close()
         conn.close()
         return jsonify({'success': True, 'id': task_id})
     except Exception as e:
+        print(f"❌ Error creating task: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
